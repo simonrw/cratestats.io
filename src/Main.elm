@@ -62,25 +62,12 @@ update msg model =
                     ( model, Cmd.none )
 
 
--- We have to add CORS headers here as we are going cross-domain, so we cannot use
--- the simple Http.get.
 fetchCrateDetails : String -> Cmd Msg
 fetchCrateDetails crateName =
-    Http.request
-    { method = "GET"
-    , headers = standardHeaders
-    , url = "/api/crates/" ++ crateName
+    Http.get
+    { url = "https://crates.io/api/v1/crates/" ++ crateName
     , expect = Http.expectJson GotCrateDetails decodeCrateDetails
-    , body = Http.emptyBody
-    , timeout = Just 5000
-    , tracker = Nothing
     }
-
-
-standardHeaders : List Http.Header
-standardHeaders =
-    [ Http.header "Access-Control-Allow-Origin" "*"
-    ]
 
 
 -- Decoders

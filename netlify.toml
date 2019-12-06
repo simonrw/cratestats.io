@@ -1,12 +1,8 @@
 [[redirects]]
-    from = "/api"
-    to = "https://crates.io/api/v1"
+    from = "/*"
+    to = "/index.html"
     status = 200
-    force = true
-    headers = {X-From = "Netlify"}
-
-
 [[headers]]
-  for = "/*"
-  [headers.values]
-    Access-Control-Allow-Origin = "*"
+    for = "/*"
+        [headers.values]
+        Access-Control-Allow-Origin = "*"
