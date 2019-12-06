@@ -1,14 +1,16 @@
 module Main exposing (..)
 
 import Browser
-import Html exposing (Html, button, div, text, h1, input, Attribute, h2)
+import Html exposing (Html, button, div, text, h1, input, Attribute, h2, p)
 import Html.Events exposing (onInput, on, keyCode)
 import Html.Attributes exposing (type_, placeholder)
 import Json.Decode as D
 import Http
 
 type alias CrateDetails =
-    {}
+    { description : String
+    , name : String
+    }
 
 
 
@@ -49,14 +51,14 @@ update msg model =
 
         KeyDown key ->
             if key == 13 then
-                ( { model | crate = model.currentText }, fetchCrateDetails model.currentText )
+                ( model, fetchCrateDetails model.currentText )
             else
                 ( model, Cmd.none )
 
         GotCrateDetails res ->
             case res of
                 Ok d ->
-                    ( model, Cmd.none )
+                    ( { model | crateDetails = Just d, crate = d.name } , Cmd.none )
 
                 Err e ->
                     ( model, Cmd.none )
@@ -65,7 +67,7 @@ update msg model =
 fetchCrateDetails : String -> Cmd Msg
 fetchCrateDetails crateName =
     Http.get
-    { url = "https://crates.io/api/v1/crates/" ++ crateName
+    { url = "/api/v1/crates/" ++ crateName
     , expect = Http.expectJson GotCrateDetails decodeCrateDetails
     }
 
@@ -74,7 +76,11 @@ fetchCrateDetails crateName =
 
 decodeCrateDetails : D.Decoder CrateDetails
 decodeCrateDetails =
-    D.succeed {}
+    D.field "crates" <|
+        D.field "crate" <|
+            D.map2 CrateDetails
+                (D.field "description" D.string)
+                (D.field "name" D.string)
 
 -- Event handlers
 
@@ -94,6 +100,12 @@ view model =
 
 viewCrate : Model -> Html Msg
 viewCrate model =
-    div []
-    [ h2 [] [ text model.crate ]
-    ]
+    case model.crateDetails of
+        Just details ->
+            div []
+            [ h2 [] [ text model.crate ]
+            , p [] [ text details.description ]
+            ]
+
+        Nothing ->
+            div [] []
