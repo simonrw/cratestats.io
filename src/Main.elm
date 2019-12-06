@@ -6,13 +6,8 @@ import Html.Events exposing (onInput, on, keyCode)
 import Html.Attributes exposing (type_, placeholder)
 import Json.Decode as D
 import Http
-
-type alias CrateDetails =
-    { description : String
-    , name : String
-    }
-
-
+import DownloadChart
+import CrateDetails exposing (CrateDetails)
 
 type alias Model =
     { currentText : String
@@ -105,6 +100,7 @@ viewCrate model =
             div []
             [ h2 [] [ text model.crate ]
             , p [] [ text details.description ]
+            , DownloadChart.view details
             ]
 
         Nothing ->
