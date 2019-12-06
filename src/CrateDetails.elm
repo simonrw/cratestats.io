@@ -1,8 +1,16 @@
-module CrateDetails exposing (CrateDetails)
+module CrateDetails exposing (CrateDetails, DownloadVersion)
+
+
+type alias DownloadVersion =
+    { version : String
+    , downloads : Float
+    }
+
 
 type alias CrateDetails =
-    { description : String
-    , name : String
+    { name : String
+    , description : String
+    , versions : List DownloadVersion
     }
 
 

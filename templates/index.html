@@ -5,6 +5,27 @@
     </head>
     <body>
         <main></main>
+        <div id="plot-space"></div>
+        <script type="text/javascript">
+            function createEvent(name) {
+                let event = document.createEvent('Event');
+                event.initEvent(name, true, true);
+                return event;
+            }
+
+let script = document.createElement('script');
+script.onload = () => {
+    window.google.load('visualization', '1.0', {
+        packages: ['corechart'],
+        callback() {
+            window.googleChartsLoaded = true;
+            document.dispatchEvent(createEvent('googleChartsLoaded'));
+        },
+    });
+};
+document.body.appendChild(script);
+script.src = 'https://www.google.com/jsapi';
+        </script>
         <script defer src="{{ url_for('static', filename='dist/index.js') }}"></script>
     </body>
 </html>

@@ -1,13 +1,17 @@
 module Main exposing (..)
 
 import Browser
+import Semver
+import Dict exposing (Dict)
 import Html exposing (Html, button, div, text, h1, input, Attribute, h2, p)
 import Html.Events exposing (onInput, on, keyCode)
-import Html.Attributes exposing (type_, placeholder)
+import Html.Attributes exposing (type_, placeholder, id)
+import Ports
 import Json.Decode as D
+import Json.Encode as E
 import Http
 import DownloadChart
-import CrateDetails exposing (CrateDetails)
+import CrateDetails exposing (CrateDetails, DownloadVersion)
 
 type alias Model =
     { currentText : String
@@ -53,7 +57,8 @@ update msg model =
         GotCrateDetails res ->
             case res of
                 Ok d ->
-                    ( { model | crateDetails = Just d, crate = d.name } , Cmd.none )
+                    ( { model | crateDetails = Just d, crate = d.name }
+                    , Ports.showDownloadsByVersion <| encodeCrateDetails d )
 
                 Err e ->
                     ( model, Cmd.none )
@@ -67,17 +72,100 @@ fetchCrateDetails crateName =
     }
 
 
+-- Encoders
+
+parseVersion : String -> String
+parseVersion s =
+    case Semver.parse s of
+        Just v ->
+            (String.fromInt v.major) ++ "." ++ (String.fromInt v.minor)
+
+        Nothing ->
+            -- TODO: make this better
+            ""
+
+
+
+updateMap : DownloadVersion -> Dict String Float -> Dict String Float
+updateMap  dv dict =
+    let
+        crateVersion =
+            parseVersion dv.version
+
+        updateFn old =
+            case old of
+                Nothing ->
+                    Just dv.downloads
+
+                Just p ->
+                    Just (dv.downloads + p)
+
+    in
+    Dict.update crateVersion updateFn dict
+
+
+createPlotData : CrateDetails -> List (String, Float)
+createPlotData d =
+    let
+        downloadMap =
+            List.foldl updateMap Dict.empty d.versions
+    in
+    Dict.toList downloadMap
+
+
+
+encodeCrateDetails : CrateDetails -> E.Value
+encodeCrateDetails cd =
+    E.list encodeVersion <| createPlotData cd
+
+
+encodeVersion : (String, Float) -> E.Value
+encodeVersion (v, d) =
+    E.object
+    [ ( "version", E.string v )
+    , ( "downloads", E.float d )
+    ]
+
+
 -- Decoders
 
 decodeCrateDetails : D.Decoder CrateDetails
 decodeCrateDetails =
     D.field "crates" <|
-        D.field "crate" <|
-            D.map2 CrateDetails
-                (D.field "description" D.string)
-                (D.field "name" D.string)
+        D.map3 CrateDetails
+            decodeCrateName
+            decodeCrateDescription
+            decodeCrateDownloads
 
+
+decodeCrateName : D.Decoder String
+decodeCrateName =
+    D.field "crate" <|
+        D.field "name" <|
+            D.string
+                
+
+decodeCrateDescription : D.Decoder String
+decodeCrateDescription =
+    D.field "crate" <|
+        D.field "description" <|
+            D.string
+
+
+decodeCrateDownloads : D.Decoder (List DownloadVersion)
+decodeCrateDownloads =
+    let
+        decodeVersion =
+            D.map2 DownloadVersion
+                (D.field "num" D.string)
+                (D.field "downloads" D.float)
+    in
+    D.field "versions" <|
+        D.list decodeVersion
+
+                
 -- Event handlers
+
 
 onKeyDown : (Int -> msg) -> Attribute msg
 onKeyDown tagger =
@@ -100,7 +188,6 @@ viewCrate model =
             div []
             [ h2 [] [ text model.crate ]
             , p [] [ text details.description ]
-            , DownloadChart.view details
             ]
 
         Nothing ->
