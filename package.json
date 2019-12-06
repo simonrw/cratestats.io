@@ -4,7 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "serve": "parcel src/index.html",
+    "serve": "parcel serve src/index.html",
+    "watch": "parcel watch src/index.html",
     "build": "parcel build src/index.html"
   },
   "keywords": [],
