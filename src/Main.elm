@@ -60,7 +60,8 @@ update msg model =
                         -- Run all of these commands
                         cmds =
                             Cmd.batch
-                                [ Ports.showDownloadsByVersion <| encodeCrateDetails d
+                                [ Ports.showDownloadsByVersion <| encodeCrateDetails "downloads-by-version-plot" d
+                                , Ports.showDownloadsTimeSeries <| encodeCrateDetails "downloads-timeseries" d
                                 ]
                     in
                     ( { model | crateDetails = Just d, crate = d.name } , cmds)
@@ -119,10 +120,10 @@ createPlotData d =
 
 
 
-encodeCrateDetails : CrateDetails -> E.Value
-encodeCrateDetails cd =
+encodeCrateDetails : String -> CrateDetails -> E.Value
+encodeCrateDetails elemId cd =
     E.object
-        [ ( "id", E.string "downloads-by-version-plot" )
+        [ ( "id", E.string elemId )
         , ( "crate", E.list encodeVersion <| createPlotData cd )
         ]
 
