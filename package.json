@@ -6,8 +6,8 @@
   "scripts": {
     "serve": "parcel serve src/index.js --out-dir static/dist",
     "watch": "webpack -d -w",
-    "build:prod": "webpack -p",
-    "build": "webpack -d"
+    "build": "webpack -p",
+    "build:dev": "webpack -d"
   },
   "keywords": [],
   "author": "",
