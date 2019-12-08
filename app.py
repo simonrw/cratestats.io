@@ -15,7 +15,7 @@ logger.setLevel(logging.DEBUG)
 
 app = Flask(__name__)
 
-redis = Redis.from_url(os.environ["REDIS"])
+redis = Redis.from_url(os.environ["REDIS_URL"])
 
 
 class CratesIoClient(object):
