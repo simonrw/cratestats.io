@@ -10,7 +10,6 @@ import Ports
 import Json.Decode as D
 import Json.Encode as E
 import Http
-import DownloadChart
 import CrateDetails exposing (CrateDetails, DownloadVersion)
 
 type alias Model =
