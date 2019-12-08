@@ -56,8 +56,14 @@ update msg model =
         GotCrateDetails res ->
             case res of
                 Ok d ->
-                    ( { model | crateDetails = Just d, crate = d.name }
-                    , Ports.showDownloadsByVersion <| encodeCrateDetails d )
+                    let
+                        -- Run all of these commands
+                        cmds =
+                            Cmd.batch
+                                [ Ports.showDownloadsByVersion <| encodeCrateDetails d
+                                ]
+                    in
+                    ( { model | crateDetails = Just d, crate = d.name } , cmds)
 
                 Err e ->
                     ( model, Cmd.none )
