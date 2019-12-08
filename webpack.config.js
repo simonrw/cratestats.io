@@ -1,7 +1,18 @@
 const path = require("path");
 
+const prod = process.env.NODE_ENV == "production";
+
+// Set up production mode
+let elm_loader_options = {};
+if (prod) {
+  elm_loader_options.optimize = true;
+} else {
+  elm_loader_options.debug = true;
+}
+
 module.exports = {
   entry: "./src/index.js",
+  mode: prod ? "production" : "development",
   output: {
     path: path.resolve(__dirname, "static", "dist"),
     filename: "index.js",
@@ -12,7 +23,7 @@ module.exports = {
       exclude: [/elm-stuff/, /node_modules/],
       use: {
         loader: 'elm-webpack-loader',
-        options: {},
+        options: elm_loader_options,
       },
     }],
   },
