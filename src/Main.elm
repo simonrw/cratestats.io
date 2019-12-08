@@ -115,7 +115,10 @@ createPlotData d =
 
 encodeCrateDetails : CrateDetails -> E.Value
 encodeCrateDetails cd =
-    E.list encodeVersion <| createPlotData cd
+    E.object
+        [ ( "id", E.string "downloads-by-version-plot" )
+        , ( "crate", E.list encodeVersion <| createPlotData cd )
+        ]
 
 
 encodeVersion : (String, Float) -> E.Value
@@ -187,6 +190,7 @@ viewCrate model =
             div []
             [ h2 [] [ text model.crate ]
             , p [] [ text details.description ]
+            , div [ id "downloads-by-version-plot" ] []
             ]
 
         Nothing ->
