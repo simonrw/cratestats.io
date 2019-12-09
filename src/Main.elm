@@ -61,7 +61,6 @@ update msg model =
                         cmds =
                             Cmd.batch
                                 [ Ports.showDownloadsByVersion <| encodeCrateDetails "downloads-by-version-plot" d
-                                , Ports.showDownloadsTimeSeries <| encodeCrateDetails "downloads-timeseries" d
                                 ]
                     in
                     ( { model | crateDetails = Just d, crate = d.name } , cmds)
