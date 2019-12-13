@@ -4,3 +4,5 @@ elm-stuff
 node_modules
 venv
 *.pyc
+.env
+dbdumps
