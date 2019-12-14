@@ -1,6 +1,8 @@
 from flask import Flask, render_template, jsonify, request
 import json
 import logging
+import networkx
+from networkx.drawing import nx_pydot
 import os
 import psycopg2
 from urllib.parse import urljoin
@@ -69,3 +71,44 @@ def api_recent_downloads():
         crate=crate_name,
         downloads=[{"version": row[0], "downloads": row[1]} for row in results],
     )
+
+
+def node_name(name, depth):
+    return f"{name}-{depth}"
+
+
+def create_graph(g, tx, crate_name, crate_version, depth=0):
+    if depth >= 5:
+        return
+
+    tx.execute("""select b.name, versions.num
+    from crates as a
+    join versions on a.id = versions.crate_id
+    join dependencies as deps on deps.version_id = versions.id
+    join crates as b on deps.crate_id = b.id
+    where a.name = %s
+    and versions.num = %s
+    """, (crate_name, crate_version))
+
+    g.add_node(node_name(crate_name, depth), label=crate_name)
+    for dep_name, dep_version in tx.fetchall():
+        g.add_node(node_name(dep_name, depth + 1), label=dep_name)
+        g.add_edge(node_name(crate_name, depth), node_name(dep_name, depth + 1))
+
+        create_graph(g, tx, dep_name, dep_version, depth + 1)
+
+
+
+if __name__ == "__main__":
+    # test the recursive fetching of dependencies
+
+    crate_name = "ggez"
+    crate_version = "0.5.1"
+
+    g = networkx.DiGraph()
+
+    with db as conn:
+        cursor = conn.cursor()
+        create_graph(g, cursor, crate_name, crate_version)
+
+    nx_pydot.write_dot(g, "graph.dot")
