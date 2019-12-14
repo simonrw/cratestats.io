@@ -23,13 +23,30 @@ def index():
     return render_template("index.html")
 
 
+# Helper functions
+def jsonify_ok(**kwargs):
+    kwargs.pop("status", None)
+    return jsonify(status="ok", **kwargs)
+
+
+def jsonify_err(message, **kwargs):
+    kwargs.pop("status", None)
+    kwargs.pop("message", None)
+    return jsonify(status="error", message=message, **kwargs), 400
+
+
 # Api routes
 
 
 @app.route("/api/v1/recent_downloads", methods=["POST"])
 def api_recent_downloads():
     req = request.get_json()
-    crate_name = req["crate"]
+    if not req:
+        return jsonify_err(message="no json body supplied")
+
+    crate_name = req.get("crate")
+    if not crate_name:
+        return jsonify_err(message="no `crate` name specified")
 
     with db as conn:
         cursor = conn.cursor()
@@ -48,7 +65,7 @@ def api_recent_downloads():
 
         results = cursor.fetchall()
 
-    return jsonify(
+    return jsonify_ok(
         crate=crate_name,
         downloads=[{"version": row[0], "downloads": row[1]} for row in results],
     )
