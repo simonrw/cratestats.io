@@ -6,3 +6,11 @@ venv
 *.pyc
 .env
 dbdumps
+
+
+#Added by cargo
+#
+#already existing elements are commented out
+
+/target
+**/*.rs.bk
