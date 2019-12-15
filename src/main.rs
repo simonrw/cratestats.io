@@ -35,6 +35,8 @@ async fn download_timeseries(
 
     #[derive(Serialize)]
     struct Response {
+        name: String,
+        version: Option<String>,
         downloads: Vec<Download>,
     }
 
@@ -48,7 +50,7 @@ async fn download_timeseries(
     let res = web::block(move || {
         let conn = db.get().unwrap();
 
-        let rows = if let Some(version) = req.version {
+        let rows = if let Some(version) = req.version.as_ref() {
             conn.query(
                 "
             SELECT version_downloads.date, sum(version_downloads.downloads)
@@ -85,7 +87,11 @@ async fn download_timeseries(
             })
             .collect();
 
-        let res: Result<Response, ()> = Ok(Response { downloads });
+        let res: Result<Response, ()> = Ok(Response {
+            name: req.name.clone(),
+            version: req.version.clone(),
+            downloads,
+        });
         res
     })
     .await
