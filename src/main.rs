@@ -54,6 +54,7 @@ async fn main() -> io::Result<()> {
             .service(web::scope("/").data(tera).route("", web::get().to(index)))
     });
 
+    // Let listenfd support live reloading
     server = if let Some(l) = listenfd.take_tcp_listener(0).unwrap() {
         server.listen(l)?
     } else {
