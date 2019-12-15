@@ -1,4 +1,5 @@
 use actix_web::{error, middleware, web, App, Error, HttpResponse, HttpServer};
+use listenfd::ListenFd;
 use serde::{Deserialize, Serialize};
 use std::io;
 
@@ -35,10 +36,11 @@ async fn download_timeseries(item: web::Json<DownloadTimeseriesRequest>) -> Http
 async fn main() -> io::Result<()> {
     dotenv::dotenv().ok();
     env_logger::init();
+    let mut listenfd = ListenFd::from_env();
 
     let port = std::env::var("PORT").expect("PORT variable not set (see .env file)");
 
-    HttpServer::new(|| {
+    let mut server = HttpServer::new(|| {
         let tera = set_up_tera().expect("could not set up tera");
 
         App::new()
@@ -50,10 +52,15 @@ async fn main() -> io::Result<()> {
                     .route("/downloads", web::post().to(download_timeseries)),
             )
             .service(web::scope("/").data(tera).route("", web::get().to(index)))
-    })
-    .bind(format!("127.0.0.1:{port}", port=port))?
-    .start()
-    .await
+    });
+
+    server = if let Some(l) = listenfd.take_tcp_listener(0).unwrap() {
+        server.listen(l)?
+    } else {
+        server.bind(format!("127.0.0.1:{port}", port = port))?
+    };
+
+    server.start().await
 }
 
 #[cfg(test)]
