@@ -92,8 +92,8 @@ type NodeHashMap = HashMap<String, petgraph::graph::NodeIndex<petgraph::graph::D
 struct NodeStore(NodeHashMap);
 
 impl NodeStore {
-    fn new(h: NodeHashMap) -> Self {
-        Self(h)
+    fn new() -> Self {
+        Self(HashMap::new())
     }
 
     fn get<S: Into<String>>(
@@ -218,7 +218,7 @@ fn main() -> Result<()> {
     info!("database connected");
 
     let mut g = petgraph::Graph::<String, ()>::new();
-    let mut node_store = NodeStore::new(HashMap::new());
+    let mut node_store = NodeStore::new();
     let max_depth = None; // Some(10);
 
     let crate_name = &opts.krate;
