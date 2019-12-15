@@ -144,9 +144,7 @@ async fn main() -> io::Result<()> {
             .service(fs::Files::new("/static", "static"))
             .service(web::scope("/").data(tera).route("", web::get().to(index)))
             // 404 handler
-            .default_service(
-                web::resource("")
-                .route(web::get().to(p404)))
+            .default_service(web::resource("").route(web::get().to(p404)))
     });
 
     // Let listenfd support live reloading
