@@ -30,24 +30,24 @@ struct DownloadTimeseriesRequest {
     version: Option<String>,
 }
 
+#[derive(Serialize)]
+struct Response {
+    name: String,
+    version: Option<String>,
+    downloads: Vec<Download>,
+}
+
+#[derive(Serialize)]
+struct Download {
+    date: chrono::NaiveDate,
+    downloads: i64,
+}
+
 async fn download_timeseries(
     item: web::Json<DownloadTimeseriesRequest>,
     db: web::Data<r2d2::Pool<r2d2_postgres::PostgresConnectionManager>>,
 ) -> Result<web::Json<Response>, Error> {
     let req = item.0;
-
-    #[derive(Serialize)]
-    struct Response {
-        name: String,
-        version: Option<String>,
-        downloads: Vec<Download>,
-    }
-
-    #[derive(Serialize)]
-    struct Download {
-        date: chrono::NaiveDate,
-        downloads: i64,
-    }
 
     // execute sync code in threadpool
     web::block(move || {
@@ -162,6 +162,7 @@ async fn main() -> io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use actix_web::dev::ResponseBody;
     use actix_web::dev::Service;
     use actix_web::{http, test, web, App};
 
@@ -183,6 +184,45 @@ mod tests {
 
         assert_eq!(resp.status(), http::StatusCode::OK);
 
+        Ok(())
+    }
+
+    #[actix_rt::test]
+    async fn test_downloads() -> Result<(), Error> {
+        dotenv::dotenv().ok();
+
+        let db_conn_str = std::env::var("DATABASE_URL").unwrap();
+        let manager =
+            r2d2_postgres::PostgresConnectionManager::new(db_conn_str, TlsMode::None).unwrap();
+        let pool = r2d2::Pool::new(manager).unwrap();
+        let mut app = test::init_service(
+            App::new().service(
+                web::scope("/api/v1")
+                    .data(pool.clone())
+                    .route("/downloads", web::post().to(download_timeseries)),
+            ),
+        )
+        .await;
+
+        let query_body = DownloadTimeseriesRequest {
+            name: "rand".to_string(),
+            version: None,
+        };
+
+        let req = test::TestRequest::post()
+            .uri("/api/v1/downloads")
+            .set_json(&query_body)
+            .to_request();
+        let mut resp = app.call(req).await?;
+
+        assert_eq!(resp.status(), http::StatusCode::OK);
+
+        match resp.take_body() {
+            ResponseBody::Body(b) => println!("{:?}", b),
+            ResponseBody::Other(b) => println!("other: {:?}", b),
+        }
+
+        assert!(false);
         Ok(())
     }
 }
