@@ -239,6 +239,14 @@ fn main() -> Result<()> {
         max_depth,
     )?;
 
+    // Get the full list of dependencies from this crate
+    let crates = g.raw_nodes();
+    let mut crate_names = crates.iter().map(|n| &n.weight).collect::<Vec<_>>();
+    crate_names.sort();
+    for name in crate_names {
+        println!("{}", name);
+    }
+
     info!("compiling dot source");
     let dot_str = Dot::with_config(&g, &[Config::EdgeNoLabel]);
 
