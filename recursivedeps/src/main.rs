@@ -5,7 +5,19 @@ use semver::{Version, VersionReq};
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::Write;
+use std::path::PathBuf;
 use std::{error, result};
+use structopt::StructOpt;
+
+#[derive(Debug, StructOpt)]
+#[structopt(name = "cratedeps")]
+struct Opts {
+    #[structopt(long = "crate", short = "c", help = "Crate to analyse")]
+    krate: String,
+
+    #[structopt(long = "output", short = "o", parse(from_os_str))]
+    output: PathBuf,
+}
 
 type Result<T> = result::Result<T, Box<dyn error::Error>>;
 
@@ -101,6 +113,29 @@ impl NodeStore {
     }
 }
 
+fn fetch_latest_version<S: Into<String>>(
+    conn: &mut Connection,
+    crate_name: S,
+) -> Result<Option<String>> {
+    let rows = conn.query(
+        "select versions.num
+    from crates
+    join versions on crates.id = versions.crate_id
+    where crates.name = $1",
+        &[&crate_name.into()],
+    )?;
+
+    let mut versions: Vec<_> = rows
+        .iter()
+        .map(|row| {
+            let version: String = row.get(0);
+            Version::parse(&version).unwrap()
+        })
+        .collect();
+    versions.sort();
+    Ok(Some(format!("{}", versions[versions.len() - 1])))
+}
+
 fn update_graph(
     graph: &mut petgraph::Graph<String, ()>,
     conn: &mut Connection,
@@ -172,6 +207,9 @@ fn update_graph(
 fn main() -> Result<()> {
     env_logger::init();
 
+    let opts = Opts::from_args();
+    info!("command line arguments: {:?}", opts);
+
     info!("connecting to database");
     let mut conn = Connection::connect(
         "postgres://crates.io@localhost/cargo_registry",
@@ -183,13 +221,19 @@ fn main() -> Result<()> {
     let mut node_store = NodeStore::new(HashMap::new());
     let max_depth = None; // Some(10);
 
-    info!("updating graph with top level crate");
+    let crate_name = &opts.krate;
+    let version = fetch_latest_version(&mut conn, crate_name)?.unwrap();
+
+    info!(
+        "updating graph with top level crate {}:{}",
+        crate_name, version
+    );
     update_graph(
         &mut g,
         &mut conn,
         &mut node_store,
-        "fitsio",
-        "0.15.0",
+        crate_name,
+        &version,
         0,
         max_depth,
     )?;
@@ -198,7 +242,7 @@ fn main() -> Result<()> {
     let dot_str = Dot::with_config(&g, &[Config::EdgeNoLabel]);
 
     info!("writing dot source to file");
-    let mut f = File::create("graph.dot")?;
+    let mut f = File::create(opts.output)?;
     write!(&mut f, "{:?}", dot_str)?;
 
     Ok(())
