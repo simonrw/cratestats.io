@@ -5,6 +5,8 @@ fn set_up_tera() -> Result<tera::Tera, tera::Error> {
     tera::Tera::new("templates/**/*")
 }
 
+// Handlers
+
 async fn index(tmpl: web::Data<tera::Tera>) -> Result<HttpResponse, Error> {
     let ctx = tera::Context::new();
     let s = tmpl.render("index.html", &ctx)
@@ -20,6 +22,8 @@ async fn main() -> io::Result<()> {
     std::env::set_var("RUST_LOG", "actix_web=info");
     env_logger::init();
 
+    let port = std::env::var("PORT").expect("PORT variable not set (see .env file)");
+
     HttpServer::new(|| {
         let tera = set_up_tera().expect("could not set up tera");
 
@@ -28,7 +32,7 @@ async fn main() -> io::Result<()> {
             .wrap(middleware::Logger::default())
             .service(web::resource("/").route(web::get().to(index)))
     })
-    .bind("127.0.0.1:8080")?
+    .bind(format!("127.0.0.1:{port}", port=port))?
     .start()
     .await
 }
