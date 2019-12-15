@@ -113,16 +113,14 @@ impl NodeStore {
     }
 }
 
-fn fetch_latest_version<S: Into<String>>(
-    conn: &mut Connection,
-    crate_name: S,
-) -> Result<Option<String>> {
+fn fetch_latest_version<S: Into<String>>(conn: &mut Connection, crate_name: S) -> Result<String> {
+    let crate_name = crate_name.into();
     let rows = conn.query(
         "select versions.num
     from crates
     join versions on crates.id = versions.crate_id
     where crates.name = $1",
-        &[&crate_name.into()],
+        &[&crate_name],
     )?;
 
     let mut versions: Vec<_> = rows
@@ -132,8 +130,11 @@ fn fetch_latest_version<S: Into<String>>(
             Version::parse(&version).unwrap()
         })
         .collect();
+    if versions.is_empty() {
+        return Err(format!("could not find any versions for crate `{}`", crate_name).into());
+    }
     versions.sort();
-    Ok(Some(format!("{}", versions[versions.len() - 1])))
+    Ok(format!("{}", versions[versions.len() - 1]))
 }
 
 fn update_graph(
@@ -222,7 +223,7 @@ fn main() -> Result<()> {
     let max_depth = None; // Some(10);
 
     let crate_name = &opts.krate;
-    let version = fetch_latest_version(&mut conn, crate_name)?.unwrap();
+    let version = fetch_latest_version(&mut conn, crate_name)?;
 
     info!(
         "updating graph with top level crate {}:{}",
