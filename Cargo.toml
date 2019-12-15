@@ -15,3 +15,4 @@ serde = { version = "1.0.103", features = ["derive"] }
 dotenv = "0.15.0"
 actix-rt = "1.0.0"
 tera = "1.0.0"
+chrono = "0.4.10"
