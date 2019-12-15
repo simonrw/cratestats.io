@@ -186,6 +186,7 @@ mod tests {
     }
 
     #[actix_rt::test]
+    #[ignore]
     async fn test_downloads() -> Result<(), Error> {
         dotenv::dotenv().ok();
 
@@ -220,7 +221,6 @@ mod tests {
             ResponseBody::Other(b) => println!("other: {:?}", b),
         }
 
-        assert!(false);
         Ok(())
     }
 }
