@@ -2,6 +2,7 @@ from flask import Flask, render_template, jsonify, request
 import json
 import logging
 import networkx
+import semver
 from networkx.drawing import nx_pydot
 import os
 import psycopg2
@@ -78,6 +79,11 @@ def node_name(name, version):
 
 
 def create_graph(g, tx, crate_name, crate_version, depth=0):
+
+    prefix = " " * depth * 4
+
+    logger.info("%sadding crate %s:%s to graph at depth %s", prefix, crate_name, crate_version, depth)
+
     tx.execute("""select b.name, versions.num
     from crates as a
     join versions on a.id = versions.crate_id
@@ -89,11 +95,13 @@ def create_graph(g, tx, crate_name, crate_version, depth=0):
 
     g.add_node(node_name(crate_name, crate_version))
     for dep_name, dep_version in tx.fetchall():
+        logger.info("%s-> dep: %s:%s", prefix, dep_name, dep_version)
 
         edge_from = node_name(crate_name, dep_version)
         edge_to = node_name(dep_name, dep_version)
 
         if (edge_from, edge_to) in g.edges():
+            logger.debug("%sseen edge %s -> %s before, skipping", prefix, edge_from, edge_to)
             continue
 
         g.add_node(node_name(dep_name, dep_version))
@@ -103,19 +111,33 @@ def create_graph(g, tx, crate_name, crate_version, depth=0):
 
 
 
+def fetch_latest_version(tx, crate_name):
+    from functools import cmp_to_key
+    tx.execute("""select versions.num
+    from crates
+    join versions on crates.id = versions.crate_id
+    where crates.name = %s""", (crate_name, ))
+    versions = [row[0] for row in tx.fetchall()]
+
+    sorted_versions = sorted(versions, key=cmp_to_key(semver.compare))
+
+    return sorted_versions[-1]
+
 if __name__ == "__main__":
     import subprocess as sp
     # test the recursive fetching of dependencies
 
-    crate_name = "ggez"
-    crate_version = "0.5.1"
+    crate_name = "fitsio"
 
     g = networkx.DiGraph()
+
+    with db as conn:
+        cursor = conn.cursor()
+        crate_version = fetch_latest_version(cursor, crate_name)
 
     with db as conn:
         cursor = conn.cursor()
         create_graph(g, cursor, crate_name, crate_version)
 
     nx_pydot.write_dot(g, "graph.dot")
-
     sp.run(["dot", "-Tsvg", "graph.dot", "-o", "graph.svg"])
