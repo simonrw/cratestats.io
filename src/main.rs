@@ -1,4 +1,5 @@
 use actix_web::{error, middleware, web, App, Error, HttpResponse, HttpServer};
+use actix_web::http::StatusCode;
 use listenfd::ListenFd;
 use r2d2_postgres::TlsMode;
 use actix_files as fs;
@@ -102,6 +103,11 @@ async fn download_timeseries(
     Ok(res)
 }
 
+// 404 handler
+async fn p404() -> actix_web::Result<fs::NamedFile> {
+    Ok(fs::NamedFile::open("static/404.html")?.set_status_code(StatusCode::NOT_FOUND))
+}
+
 #[actix_rt::main]
 async fn main() -> io::Result<()> {
     // Initial setup
@@ -133,6 +139,10 @@ async fn main() -> io::Result<()> {
             )
             .service(fs::Files::new("/static", "static"))
             .service(web::scope("/").data(tera).route("", web::get().to(index)))
+            // 404 handler
+            .default_service(
+                web::resource("")
+                .route(web::get().to(p404)))
     });
 
     // Let listenfd support live reloading
