@@ -123,6 +123,7 @@ async fn main() -> io::Result<()> {
     let db_conn_str =
         std::env::var("DATABASE_URL").expect("DATABASE_URL variable not set (see .env file)");
     let port = std::env::var("PORT").expect("PORT variable not set (see .env file)");
+    let host = std::env::var("HOST").expect("HOST variable not set (see .env file)");
 
     // Set up the database
     let manager = r2d2_postgres::PostgresConnectionManager::new(db_conn_str, TlsMode::None)
@@ -151,7 +152,7 @@ async fn main() -> io::Result<()> {
     server = if let Some(l) = listenfd.take_tcp_listener(0).unwrap() {
         server.listen(l)?
     } else {
-        server.bind(format!("127.0.0.1:{port}", port = port))?
+        server.bind(format!("{host}:{port}", host = host, port = port))?
     };
 
     server.start().await
