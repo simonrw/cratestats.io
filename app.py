@@ -73,14 +73,11 @@ def api_recent_downloads():
     )
 
 
-def node_name(name, depth):
-    return f"{name}-{depth}"
+def node_name(name, version):
+    return f"{name}-{version}"
 
 
 def create_graph(g, tx, crate_name, crate_version, depth=0):
-    if depth >= 5:
-        return
-
     tx.execute("""select b.name, versions.num
     from crates as a
     join versions on a.id = versions.crate_id
@@ -90,16 +87,24 @@ def create_graph(g, tx, crate_name, crate_version, depth=0):
     and versions.num = %s
     """, (crate_name, crate_version))
 
-    g.add_node(node_name(crate_name, depth), label=crate_name)
+    g.add_node(node_name(crate_name, crate_version))
     for dep_name, dep_version in tx.fetchall():
-        g.add_node(node_name(dep_name, depth + 1), label=dep_name)
-        g.add_edge(node_name(crate_name, depth), node_name(dep_name, depth + 1))
+
+        edge_from = node_name(crate_name, dep_version)
+        edge_to = node_name(dep_name, dep_version)
+
+        if (edge_from, edge_to) in g.edges():
+            continue
+
+        g.add_node(node_name(dep_name, dep_version))
+        g.add_edge(edge_from, edge_to)
 
         create_graph(g, tx, dep_name, dep_version, depth + 1)
 
 
 
 if __name__ == "__main__":
+    import subprocess as sp
     # test the recursive fetching of dependencies
 
     crate_name = "ggez"
@@ -112,3 +117,5 @@ if __name__ == "__main__":
         create_graph(g, cursor, crate_name, crate_version)
 
     nx_pydot.write_dot(g, "graph.dot")
+
+    sp.run(["dot", "-Tsvg", "graph.dot", "-o", "graph.svg"])
