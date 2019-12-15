@@ -131,12 +131,15 @@ fn update_graph(
     join dependencies as deps on deps.version_id = versions.id
     join crates as b on deps.crate_id = b.id
     where a.name = $1
-    and deps.optional
     and (deps.kind = 0 or deps.kind = 1)
     and versions.num = $2",
             &[&crate_name, &crate_version],
         )
         .expect("fetching dependencies");
+
+    if rows.len() == 0 {
+        warn!("no dependencies found; this should probably not happen");
+    }
 
     for row in &rows {
         let dep_name: String = row.get(0);
