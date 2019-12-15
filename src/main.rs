@@ -1,8 +1,9 @@
-use actix_web::{error, middleware, web, App, Error, HttpResponse, HttpServer};
+use actix_files as fs;
 use actix_web::http::StatusCode;
+use actix_web::{error, middleware, web, App, Error, HttpResponse, HttpServer};
+use failure::bail;
 use listenfd::ListenFd;
 use r2d2_postgres::TlsMode;
-use actix_files as fs;
 use serde::{Deserialize, Serialize};
 use std::io;
 
@@ -32,7 +33,7 @@ struct DownloadTimeseriesRequest {
 async fn download_timeseries(
     item: web::Json<DownloadTimeseriesRequest>,
     db: web::Data<r2d2::Pool<r2d2_postgres::PostgresConnectionManager>>,
-) -> Result<HttpResponse, Error> {
+) -> Result<web::Json<Response>, Error> {
     let req = item.0;
 
     #[derive(Serialize)]
@@ -49,7 +50,7 @@ async fn download_timeseries(
     }
 
     // execute sync code in threadpool
-    let res = web::block(move || {
+    web::block(move || {
         let conn = db.get().unwrap();
 
         let rows = if let Some(version) = req.version.as_ref() {
@@ -87,20 +88,23 @@ async fn download_timeseries(
                 date: row.get(0),
                 downloads: row.get(1),
             })
-            .collect();
+            .collect::<Vec<_>>();
 
-        let res: Result<Response, ()> = Ok(Response {
+        if downloads.is_empty() {
+            bail!("cannot find any downloads for {}", &req.name);
+        }
+
+        let res: Result<Response, failure::Error> = Ok(Response {
             name: req.name.clone(),
             version: req.version.clone(),
             downloads,
         });
+
         res
     })
     .await
-    .map(|v| HttpResponse::Ok().json(v))
-    .map_err(|_| HttpResponse::InternalServerError())?;
-
-    Ok(res)
+    .map(|v| web::Json(v))
+    .map_err(|_| HttpResponse::InternalServerError().finish().into())
 }
 
 // 404 handler
