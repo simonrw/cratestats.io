@@ -1,5 +1,6 @@
 use actix_web::{error, middleware, web, App, Error, HttpResponse, HttpServer};
 use listenfd::ListenFd;
+use r2d2_postgres::TlsMode;
 use serde::{Deserialize, Serialize};
 use std::io;
 
@@ -26,21 +27,92 @@ struct DownloadTimeseriesRequest {
     version: Option<String>,
 }
 
-async fn download_timeseries(item: web::Json<DownloadTimeseriesRequest>) -> HttpResponse {
+async fn download_timeseries(
+    item: web::Json<DownloadTimeseriesRequest>,
+    db: web::Data<r2d2::Pool<r2d2_postgres::PostgresConnectionManager>>,
+) -> Result<HttpResponse, Error> {
     let req = item.0;
-    log::info!("got request: {:?}", req);
-    HttpResponse::Ok().json(req)
+
+    #[derive(Serialize)]
+    struct Response {
+        downloads: Vec<Download>,
+    }
+
+    #[derive(Serialize)]
+    struct Download {
+        date: chrono::NaiveDate,
+        downloads: i64,
+    }
+
+    // execute sync code in threadpool
+    let res = web::block(move || {
+        let conn = db.get().unwrap();
+
+        let rows = if let Some(version) = req.version {
+            conn.query(
+                "
+            SELECT version_downloads.date, sum(version_downloads.downloads)
+            FROM crates
+            JOIN versions ON crates.id = versions.crate_id
+            JOIN version_downloads ON versions.id = version_downloads.version_id
+            WHERE crates.name = $1
+            AND versions.num = $2
+            GROUP BY version_downloads.date
+            ORDER BY version_downloads.date ASC",
+                &[&req.name, &version],
+            )
+            .unwrap()
+        } else {
+            conn.query(
+                "
+            SELECT version_downloads.date, sum(version_downloads.downloads)
+            FROM crates
+            JOIN versions ON crates.id = versions.crate_id
+            JOIN version_downloads ON versions.id = version_downloads.version_id
+            WHERE crates.name = $1
+            GROUP BY version_downloads.date
+            ORDER BY version_downloads.date ASC",
+                &[&req.name],
+            )
+            .unwrap()
+        };
+
+        let downloads = rows
+            .iter()
+            .map(|row| Download {
+                date: row.get(0),
+                downloads: row.get(1),
+            })
+            .collect();
+
+        let res: Result<Response, ()> = Ok(Response { downloads });
+        res
+    })
+    .await
+    .map(|v| HttpResponse::Ok().json(v))
+    .map_err(|_| HttpResponse::InternalServerError())?;
+
+    Ok(res)
 }
 
 #[actix_rt::main]
 async fn main() -> io::Result<()> {
+    // Initial setup
     dotenv::dotenv().ok();
     env_logger::init();
     let mut listenfd = ListenFd::from_env();
 
+    // Get variables from the environment
+    let db_conn_str =
+        std::env::var("DATABASE_URL").expect("DATABASE_URL variable not set (see .env file)");
     let port = std::env::var("PORT").expect("PORT variable not set (see .env file)");
 
-    let mut server = HttpServer::new(|| {
+    // Set up the database
+    let manager = r2d2_postgres::PostgresConnectionManager::new(db_conn_str, TlsMode::None)
+        .expect("creating postgres connection manager");
+    let pool = r2d2::Pool::new(manager).expect("setting up postgres connection pool");
+
+    let mut server = HttpServer::new(move || {
         let tera = set_up_tera().expect("could not set up tera");
 
         App::new()
@@ -49,6 +121,7 @@ async fn main() -> io::Result<()> {
                 web::scope("/api/v1")
                     // Limit the size of incoming payload
                     .data(web::JsonConfig::default().limit(1024))
+                    .data(pool.clone())
                     .route("/downloads", web::post().to(download_timeseries)),
             )
             .service(web::scope("/").data(tera).route("", web::get().to(index)))
