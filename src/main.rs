@@ -1,6 +1,7 @@
 use actix_web::{error, middleware, web, App, Error, HttpResponse, HttpServer};
 use listenfd::ListenFd;
 use r2d2_postgres::TlsMode;
+use actix_files as fs;
 use serde::{Deserialize, Serialize};
 use std::io;
 
@@ -130,6 +131,7 @@ async fn main() -> io::Result<()> {
                     .data(pool.clone())
                     .route("/downloads", web::post().to(download_timeseries)),
             )
+            .service(fs::Files::new("/static", "static"))
             .service(web::scope("/").data(tera).route("", web::get().to(index)))
     });
 
