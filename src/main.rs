@@ -2,10 +2,10 @@ use actix_files as fs;
 use actix_web::http::StatusCode;
 use actix_web::{error, middleware, web, App, Error, HttpResponse, HttpServer};
 use failure::bail;
-use serde_json::json;
 use listenfd::ListenFd;
 use r2d2_postgres::TlsMode;
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use std::io;
 
 fn set_up_tera() -> Result<tera::Tera, tera::Error> {
@@ -107,13 +107,18 @@ async fn download_timeseries(
     .map(|v| web::Json(v))
     .map_err(|e| {
         match e {
-            actix_threadpool::BlockingError::Error(e) => HttpResponse::InternalServerError().json(json!({
-                "error": e.to_string(),
-            })),
-            actix_threadpool::BlockingError::Canceled => HttpResponse::InternalServerError().json(json!({
-                "error": "threadpool task cancelled",
-            })),
-        }.into()
+            actix_threadpool::BlockingError::Error(e) => {
+                HttpResponse::InternalServerError().json(json!({
+                    "error": e.to_string(),
+                }))
+            }
+            actix_threadpool::BlockingError::Canceled => {
+                HttpResponse::InternalServerError().json(json!({
+                    "error": "threadpool task cancelled",
+                }))
+            }
+        }
+        .into()
     })
 }
 
