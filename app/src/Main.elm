@@ -189,9 +189,10 @@ type XType
     | XDate String
 
 
-type Trace
-    = Scatter { x : List XType, y : List Float }
-    | Line { x : List XType, y : List Float }
+type
+    Trace
+    -- = Scatter { x : List XType, y : List Float }
+    = Line { x : List XType, y : List Float }
 
 
 type alias Layout =
@@ -222,14 +223,13 @@ encodeTraces traces =
 encodeTrace : Trace -> E.Value
 encodeTrace trace =
     case trace of
-        Scatter s ->
-            E.object
-                [ ( "x", E.list encodeXType s.x )
-                , ( "y", E.list E.float s.y )
-                , ( "type", E.string "scatter" )
-                , ( "mode", E.string "markers" )
-                ]
-
+        -- Scatter s ->
+        --     E.object
+        --         [ ( "x", E.list encodeXType s.x )
+        --         , ( "y", E.list E.float s.y )
+        --         , ( "type", E.string "scatter" )
+        --         , ( "mode", E.string "markers" )
+        --         ]
         Line l ->
             E.object
                 [ ( "x", E.list encodeXType l.x )
