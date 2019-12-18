@@ -1,9 +1,9 @@
 port module Main exposing (XType(..), main)
 
 import Browser
-import Html exposing (Html, div, h1, input, text)
+import Html exposing (Html, a, div, h1, input, text)
 import Html.Attributes exposing (id, type_)
-import Html.Events exposing (keyCode, on, onInput)
+import Html.Events exposing (keyCode, on, onClick, onInput)
 import Http
 import Json.Decode as D
 import Json.Encode as E
@@ -12,6 +12,16 @@ import Json.Encode as E
 type Model
     = Searching String
     | Found String
+
+
+searchText : Model -> Maybe String
+searchText model =
+    case model of
+        Searching s ->
+            Just s
+
+        _ ->
+            Nothing
 
 
 main : Program () Model Msg
@@ -45,21 +55,17 @@ encodePlotRequest req =
                 ]
 
 
+fetch : PlotRequest -> Cmd Msg
+fetch plotRequest =
+    Http.post
+        { url = "/api/v1/downloads"
+        , body = Http.jsonBody (encodePlotRequest plotRequest)
+        , expect = Http.expectJson GotDownloads decodeDownloads
+        }
+
+
 init : () -> ( Model, Cmd Msg )
 init _ =
-    let
-        plotRequest =
-            { name = "itertools"
-            , version = Nothing
-            }
-
-        fetch =
-            Http.post
-                { url = "/api/v1/downloads"
-                , body = Http.jsonBody (encodePlotRequest plotRequest)
-                , expect = Http.expectJson GotDownloads decodeDownloads
-                }
-    in
     ( Searching "", Cmd.none )
 
 
@@ -95,6 +101,7 @@ type Msg
     = GotDownloads (Result Http.Error Downloads)
     | InputUpdated String
     | KeyDown Int
+    | ResetApp
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -128,6 +135,27 @@ update msg model =
         InputUpdated s ->
             ( Searching s, Cmd.none )
 
+        KeyDown keyCode ->
+            if keyCode == 13 then
+                case searchText model of
+                    Just s ->
+                        let
+                            plotRequest =
+                                { name = s
+                                , version = Nothing
+                                }
+                        in
+                        ( Found s, fetch plotRequest )
+
+                    Nothing ->
+                        ( model, Cmd.none )
+
+            else
+                ( model, Cmd.none )
+
+        ResetApp ->
+            ( Searching "", Cmd.none )
+
 
 view : Model -> Html Msg
 view model =
@@ -137,8 +165,8 @@ view model =
                 [ h1 [] [ text "Crate Stats" ]
                 ]
 
-        onKeyDown tagger =
-            on "keydown" (D.map tagger keyCode)
+        onKeyDown msg =
+            on "keydown" (D.map msg keyCode)
     in
     case model of
         Searching _ ->
@@ -150,8 +178,8 @@ view model =
         Found _ ->
             div []
                 [ header
+                , a [ onClick ResetApp ] [ text "Back" ]
                 , div [ id "plot-container" ] []
-                , div [ id "plot-container2" ] []
                 ]
 
 
