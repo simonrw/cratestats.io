@@ -21,26 +21,6 @@ type alias PlotRequest =
     }
 
 
-crateText : Model -> Maybe String
-crateText model =
-    case model of
-        Searching s ->
-            Just s.crate
-
-        _ ->
-            Nothing
-
-
-versionText : Model -> Maybe String
-versionText model =
-    case model of
-        Searching s ->
-            s.version
-
-        _ ->
-            Nothing
-
-
 main : Program () Model Msg
 main =
     Browser.element
