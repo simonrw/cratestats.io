@@ -1,25 +1,27 @@
-port module Main exposing (..)
+port module Main exposing (XType(..), main)
 
 import Browser
-import Dict exposing (Dict)
-import Html exposing (Html, button, div, text, h1, input, Attribute, h2, p)
-import Time
-import Html.Events exposing (onInput, on, keyCode)
-import Html.Attributes exposing (type_, placeholder, id)
+import Html exposing (Html, div, h1, input, text)
+import Html.Attributes exposing (id, type_)
+import Html.Events exposing (keyCode, on, onInput)
 import Http
 import Json.Decode as D
 import Json.Encode as E
 
-type alias Model =
-  {}
 
+type Model
+    = Searching String
+    | Found String
+
+
+main : Program () Model Msg
 main =
     Browser.element
-    { init = init
-    , update = update
-    , view = view
-    , subscriptions = \_ -> Sub.none
-    }
+        { init = init
+        , update = update
+        , view = view
+        , subscriptions = \_ -> Sub.none
+        }
 
 
 type alias PlotRequest =
@@ -43,7 +45,6 @@ encodePlotRequest req =
                 ]
 
 
-
 init : () -> ( Model, Cmd Msg )
 init _ =
     let
@@ -54,12 +55,13 @@ init _ =
 
         fetch =
             Http.post
-            { url = "/api/v1/downloads"
-            , body = Http.jsonBody (encodePlotRequest plotRequest)
-            , expect = Http.expectJson GotDownloads decodeDownloads
-            }
+                { url = "/api/v1/downloads"
+                , body = Http.jsonBody (encodePlotRequest plotRequest)
+                , expect = Http.expectJson GotDownloads decodeDownloads
+                }
     in
-    ( {} , fetch )
+    ( Searching "", Cmd.none )
+
 
 type alias Downloads =
     { name : String
@@ -88,8 +90,11 @@ decodeDownload =
         (D.field "date" D.string)
         (D.field "downloads" D.int)
 
+
 type Msg
-  = GotDownloads (Result Http.Error Downloads)
+    = GotDownloads (Result Http.Error Downloads)
+    | InputUpdated String
+    | KeyDown Int
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -100,12 +105,13 @@ update msg model =
                 Ok d ->
                     let
                         traces =
-                            [ Line { x = List.map (XDate << .date) d.downloads
-                            , y = List.map (toFloat << .downloads) d.downloads
-                            }
+                            [ Line
+                                { x = List.map (XDate << .date) d.downloads
+                                , y = List.map (toFloat << .downloads) d.downloads
+                                }
                             ]
 
-                        layout = 
+                        layout =
                             {}
 
                         plotSpec1 =
@@ -115,19 +121,41 @@ update msg model =
                             }
                     in
                     ( model, elmToJs <| encodePlotSpec plotSpec1 )
-                Err e ->
+
+                Err _ ->
                     ( model, Cmd.none )
+
+        InputUpdated s ->
+            ( Searching s, Cmd.none )
+
 
 view : Model -> Html Msg
 view model =
-    div []
-    [ h1 [] [ Html.text "CrateStats" ]
-    , div [ id "plot-container" ] []
-    , div [ id "plot-container2" ] []
-    ]
+    let
+        header =
+            div []
+                [ h1 [] [ text "Crate Stats" ]
+                ]
+
+        onKeyDown tagger =
+            on "keydown" (D.map tagger keyCode)
+    in
+    case model of
+        Searching _ ->
+            div []
+                [ header
+                , input [ type_ "text", onInput InputUpdated, onKeyDown KeyDown ] []
+                ]
+
+        Found _ ->
+            div []
+                [ header
+                , div [ id "plot-container" ] []
+                , div [ id "plot-container2" ] []
+                ]
 
 
-type XType 
+type XType
     = XFloat Float
     | XDate String
 
@@ -136,9 +164,10 @@ type Trace
     = Scatter { x : List XType, y : List Float }
     | Line { x : List XType, y : List Float }
 
+
 type alias Layout =
-    { 
-    }
+    {}
+
 
 type alias PlotSpec =
     { traces : List Trace
@@ -150,10 +179,10 @@ type alias PlotSpec =
 encodePlotSpec : PlotSpec -> E.Value
 encodePlotSpec spec =
     E.object
-    [ ( "id", E.string spec.id )
-    , ( "data", encodeTraces spec.traces )
-    , ( "layout", E.null )
-    ]
+        [ ( "id", E.string spec.id )
+        , ( "data", encodeTraces spec.traces )
+        , ( "layout", E.null )
+        ]
 
 
 encodeTraces : List Trace -> E.Value
@@ -188,5 +217,6 @@ encodeXType typ =
 
         XDate x ->
             E.string x
+
 
 port elmToJs : E.Value -> Cmd msg
