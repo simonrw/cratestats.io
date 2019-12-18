@@ -22,3 +22,5 @@ postgres = { version = "0.15.2", features = ["with-chrono"] }
 listenfd = "0.3.3"
 actix-files = "0.2.0-alpha.3"
 failure = "0.1.6"
+serde_json = "1.0.44"
+actix-threadpool = "0.3.1"
