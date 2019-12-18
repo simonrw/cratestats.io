@@ -1,13 +1,11 @@
 all: help
 
 help:
-	@echo "Commands: run, devrun, test"
-
+	@echo "Commands: run, devrun, test, frontend"
 
 .PHONY: run
 run:
 	cargo run
-
 
 .PHONY: devrun
 devrun:
@@ -16,3 +14,7 @@ devrun:
 .PHONY: test
 test:
 	cargo test
+
+.PHONY: frontend
+frontend:
+	npm run watch
