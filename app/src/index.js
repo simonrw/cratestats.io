@@ -10,6 +10,9 @@ app.ports.elmToJs.subscribe(data => {
   let layout = data.layout;
 
   requestAnimationFrame(() => {
+    // Get rid of any existing plot
+    Plotly.purge(id);
+
     Plotly.newPlot(id, traces, layout);
   });
 });
