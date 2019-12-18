@@ -1,24 +1,41 @@
 port module Main exposing (XType(..), main)
 
 import Browser
-import Html exposing (Html, a, div, h1, input, text)
-import Html.Attributes exposing (id, type_)
+import Html exposing (Html, a, div, h1, input, label, text)
+import Html.Attributes exposing (for, id, type_)
 import Html.Events exposing (keyCode, on, onClick, onInput)
 import Http
 import Json.Decode as D
 import Json.Encode as E
+import Semver
 
 
 type Model
-    = Searching String
-    | Found String
+    = Searching PlotRequest
+    | Found PlotRequest
 
 
-searchText : Model -> Maybe String
-searchText model =
+type alias PlotRequest =
+    { crate : String
+    , version : Maybe String
+    }
+
+
+crateText : Model -> Maybe String
+crateText model =
     case model of
         Searching s ->
-            Just s
+            Just s.crate
+
+        _ ->
+            Nothing
+
+
+versionText : Model -> Maybe String
+versionText model =
+    case model of
+        Searching s ->
+            s.version
 
         _ ->
             Nothing
@@ -34,24 +51,18 @@ main =
         }
 
 
-type alias PlotRequest =
-    { name : String
-    , version : Maybe String
-    }
-
-
 encodePlotRequest : PlotRequest -> E.Value
 encodePlotRequest req =
     case req.version of
         Just version ->
             E.object
-                [ ( "name", E.string req.name )
+                [ ( "name", E.string req.crate )
                 , ( "version", E.string version )
                 ]
 
         Nothing ->
             E.object
-                [ ( "name", E.string req.name )
+                [ ( "name", E.string req.crate )
                 ]
 
 
@@ -66,7 +77,7 @@ fetch plotRequest =
 
 init : () -> ( Model, Cmd Msg )
 init _ =
-    ( Searching "", Cmd.none )
+    ( Searching { crate = "", version = Nothing }, Cmd.none )
 
 
 type alias Downloads =
@@ -99,7 +110,8 @@ decodeDownload =
 
 type Msg
     = GotDownloads (Result Http.Error Downloads)
-    | InputUpdated String
+    | CrateNameUpdated String
+    | CrateVersionUpdated String
     | KeyDown Int
     | ResetApp
 
@@ -132,29 +144,47 @@ update msg model =
                 Err _ ->
                     ( model, Cmd.none )
 
-        InputUpdated s ->
-            ( Searching s, Cmd.none )
+        CrateNameUpdated s ->
+            case model of
+                Searching { crate, version } ->
+                    ( Searching { crate = s, version = version }, Cmd.none )
+
+                _ ->
+                    ( model, Cmd.none )
+
+        CrateVersionUpdated s ->
+            case model of
+                Searching { crate, version } ->
+                    ( Searching { crate = crate, version = Just s }, Cmd.none )
+
+                _ ->
+                    ( model, Cmd.none )
 
         KeyDown keyCode ->
             if keyCode == 13 then
-                case searchText model of
-                    Just s ->
-                        let
-                            plotRequest =
-                                { name = s
-                                , version = Nothing
-                                }
-                        in
-                        ( Found s, fetch plotRequest )
+                -- Send off the data for the crate
+                case model of
+                    Searching r ->
+                        case r.version of
+                            Just v ->
+                                case Semver.parse v of
+                                    Just _ ->
+                                        ( Found r, fetch r )
 
-                    Nothing ->
+                                    Nothing ->
+                                        ( Searching r, Cmd.none )
+
+                            Nothing ->
+                                ( Found r, fetch r )
+
+                    Found _ ->
                         ( model, Cmd.none )
 
             else
                 ( model, Cmd.none )
 
         ResetApp ->
-            ( Searching "", Cmd.none )
+            ( Searching { crate = "", version = Nothing }, Cmd.none )
 
 
 view : Model -> Html Msg
@@ -172,7 +202,10 @@ view model =
         Searching _ ->
             div []
                 [ header
-                , input [ type_ "text", onInput InputUpdated, onKeyDown KeyDown ] []
+                , label [ for "crate-name-input" ] [ text "Crate name" ]
+                , input [ id "crate-name-input", type_ "text", onInput CrateNameUpdated, onKeyDown KeyDown ] []
+                , label [ for "crate-version-input" ] [ text "Crate version (optional)" ]
+                , input [ id "crate-version-input", type_ "text", onInput CrateVersionUpdated, onKeyDown KeyDown ] []
                 ]
 
         Found _ ->
