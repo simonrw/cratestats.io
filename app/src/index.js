@@ -5,11 +5,11 @@ let app = Elm.Main.init({
 });
 
 app.ports.elmToJs.subscribe(data => {
-  let elemId = data.id;
-  let specs = data.specs;
-  console.log(elemId, specs);
+  let id = data.id;
+  let traces = data.data;
+  let layout = data.layout;
 
   requestAnimationFrame(() => {
-    vegaEmbed(elemId, specs, {actions: false}).catch(console.error);
+    Plotly.newPlot(id, traces, layout);
   });
 });

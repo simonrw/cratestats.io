@@ -6,7 +6,6 @@ import Html exposing (Html, button, div, text, h1, input, Attribute, h2, p)
 import Time
 import Html.Events exposing (onInput, on, keyCode)
 import Html.Attributes exposing (type_, placeholder, id)
-import VegaLite exposing (..)
 import Http
 import Json.Decode as D
 import Json.Encode as E
@@ -49,7 +48,7 @@ init : () -> ( Model, Cmd Msg )
 init _ =
     let
         plotRequest =
-            { name = "fitsio"
+            { name = "itertools"
             , version = Nothing
             }
 
@@ -100,12 +99,22 @@ update msg model =
             case res of
                 Ok d ->
                     let
+                        traces =
+                            [ Line { x = List.map (XDate << .date) d.downloads
+                            , y = List.map (toFloat << .downloads) d.downloads
+                            }
+                            ]
+
+                        layout = 
+                            {}
+
                         plotSpec1 =
-                            { specs = myVis d
-                            , id = "#plot-container"
+                            { traces = traces
+                            , layout = layout
+                            , id = "plot-container"
                             }
                     in
-                    ( model, elmToJs plotSpec1 )
+                    ( model, elmToJs <| encodePlotSpec plotSpec1 )
                 Err e ->
                     ( model, Cmd.none )
 
@@ -118,39 +127,66 @@ view model =
     ]
 
 
+type XType 
+    = XFloat Float
+    | XDate String
+
+
+type Trace
+    = Scatter { x : List XType, y : List Float }
+    | Line { x : List XType, y : List Float }
+
+type alias Layout =
+    { 
+    }
+
 type alias PlotSpec =
-    { specs : Spec
+    { traces : List Trace
+    , layout : Layout
     , id : String
     }
 
-port elmToJs : PlotSpec -> Cmd msg
 
--- Visualisations
-
-myVis : Downloads -> Spec
-myVis d =
-    let
-        x =
-            List.map .date d.downloads
-
-        y =
-            List.map (toFloat << .downloads) d.downloads
-
-        data =
-            dataFromColumns [ parse [ ( "Date", foDate "%Y-%m-%d" ) ] ]
-            << dataColumn "Date" (strs x)
-            << dataColumn "Downloads" (nums y)
-
-        enc =
-            encoding
-                << position X [ pName "Date", pMType Temporal ]
-                << position Y [ pName "Downloads", pMType Nominal ]
-    in
-    toVegaLite
-    [ VegaLite.title "Hello world"
-    , width 1024
-    , height 800
-    , data []
-    , enc []
-    , line []
+encodePlotSpec : PlotSpec -> E.Value
+encodePlotSpec spec =
+    E.object
+    [ ( "id", E.string spec.id )
+    , ( "data", encodeTraces spec.traces )
+    , ( "layout", E.null )
     ]
+
+
+encodeTraces : List Trace -> E.Value
+encodeTraces traces =
+    E.list encodeTrace traces
+
+
+encodeTrace : Trace -> E.Value
+encodeTrace trace =
+    case trace of
+        Scatter s ->
+            E.object
+                [ ( "x", E.list encodeXType s.x )
+                , ( "y", E.list E.float s.y )
+                , ( "type", E.string "scatter" )
+                , ( "mode", E.string "markers" )
+                ]
+
+        Line l ->
+            E.object
+                [ ( "x", E.list encodeXType l.x )
+                , ( "y", E.list E.float l.y )
+                , ( "type", E.string "scatter" )
+                ]
+
+
+encodeXType : XType -> E.Value
+encodeXType typ =
+    case typ of
+        XFloat x ->
+            E.float x
+
+        XDate x ->
+            E.string x
+
+port elmToJs : E.Value -> Cmd msg
