@@ -100,19 +100,34 @@ async fn download_timeseries(
         let conn = db.get().unwrap();
 
         let rows = if let Some(version) = req.version.as_ref() {
-            conn.query(
-                "
-            SELECT version_downloads.date, sum(version_downloads.downloads)
-            FROM crates
-            JOIN versions ON crates.id = versions.crate_id
-            JOIN version_downloads ON versions.id = version_downloads.version_id
-            WHERE crates.name = $1
-            AND versions.num = $2
-            GROUP BY version_downloads.date
-            ORDER BY version_downloads.date ASC",
-                &[&req.name, &version],
-            )
-            .unwrap()
+            if version == "all" {
+                conn.query(
+                    "
+                SELECT version_downloads.date, sum(version_downloads.downloads)
+                FROM crates
+                JOIN versions ON crates.id = versions.crate_id
+                JOIN version_downloads ON versions.id = version_downloads.version_id
+                WHERE crates.name = $1
+                AND versions.num = $2
+                GROUP BY version_downloads.date
+                ORDER BY version_downloads.date ASC",
+                    &[&req.name, &version],
+                )
+                .unwrap()
+            } else {
+                conn.query(
+                    "
+                SELECT version_downloads.date, sum(version_downloads.downloads)
+                FROM crates
+                JOIN versions ON crates.id = versions.crate_id
+                JOIN version_downloads ON versions.id = version_downloads.version_id
+                WHERE crates.name = $1
+                GROUP BY version_downloads.date
+                ORDER BY version_downloads.date ASC",
+                    &[&req.name],
+                )
+                .unwrap()
+            }
         } else {
             conn.query(
                 "

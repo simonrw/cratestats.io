@@ -1,38 +1,32 @@
 port module Main exposing (XType(..), main)
 
 import Browser
-import Html exposing (Html, div, h1, input, label, text)
-import Html.Attributes exposing (for, id, type_)
-import Html.Events exposing (keyCode, on, onInput)
+import Html exposing (Html, div, h1, input, label, option, select, text)
+import Html.Attributes exposing (for, id, type_, value)
+import Html.Events exposing (on, onInput)
 import Http
 import Json.Decode as D
 import Json.Encode as E
-import Semver
 
 
 type
     CrateStatsError
     -- = TextError String
     = HttpError Http.Error
-    | SemverParseError
 
 
 type alias Model =
     { crateText : String
-    , versionText : String
-    , crate : Maybe String
-    , version : Maybe Semver.Version
     , error : Maybe CrateStatsError
+    , versions : List String
     }
 
 
 initModel : Model
 initModel =
     { crateText = ""
-    , versionText = ""
-    , crate = Nothing
-    , version = Nothing
     , error = Nothing
+    , versions = []
     }
 
 
@@ -72,12 +66,20 @@ encodePlotRequest req =
                 ]
 
 
-fetch : PlotRequest -> Cmd Msg
-fetch plotRequest =
+fetchDownloads : PlotRequest -> Cmd Msg
+fetchDownloads plotRequest =
     Http.post
         { url = "/api/v1/downloads"
         , body = Http.jsonBody (encodePlotRequest plotRequest)
         , expect = Http.expectJson GotDownloads decodeDownloads
+        }
+
+
+fetchVersions : String -> Cmd Msg
+fetchVersions name =
+    Http.get
+        { url = "/api/v1/versions/" ++ name
+        , expect = Http.expectJson GotVersions decodeVersions
         }
 
 
@@ -90,6 +92,11 @@ type alias Downloads =
     { name : String
     , version : Maybe String
     , downloads : List Download
+    }
+
+
+type alias Versions =
+    { versions : List String
     }
 
 
@@ -114,11 +121,17 @@ decodeDownload =
         (D.field "downloads" D.int)
 
 
+decodeVersions : D.Decoder Versions
+decodeVersions =
+    D.map Versions
+        (D.field "versions" (D.list D.string))
+
+
 type Msg
     = GotDownloads (Result Http.Error Downloads)
+    | GotVersions (Result Http.Error Versions)
     | CrateNameUpdated String
-    | CrateVersionUpdated String
-    | KeyDown Int
+    | VersionSelected String
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -149,61 +162,41 @@ update msg model =
                 Err e ->
                     ( { model | error = Just (HttpError e) }, Cmd.none )
 
+        GotVersions res ->
+            case res of
+                Ok v ->
+                    ( { model | versions = v.versions }, Cmd.none )
+
+                Err e ->
+                    ( { model | error = Just (HttpError e) }, Cmd.none )
+
         CrateNameUpdated s ->
-            ( { model | crateText = s }, Cmd.none )
+            ( { model | crateText = s }, fetchVersions s )
 
-        CrateVersionUpdated s ->
-            ( { model | versionText = s }, Cmd.none )
-
-        KeyDown keyCode ->
-            if keyCode == 13 then
-                if model.versionText /= "" then
-                    case Semver.parse model.versionText of
-                        Just validVersion ->
-                            let
-                                newModel =
-                                    { model | crate = Just model.crateText, version = Just validVersion }
-
-                                plotRequest =
-                                    { crate = newModel.crate |> Maybe.withDefault ""
-                                    , version = newModel.version |> Maybe.map Semver.print
-                                    }
-                            in
-                            ( resetError newModel, fetch plotRequest )
-
-                        Nothing ->
-                            ( { model | error = Just SemverParseError }, Cmd.none )
-
-                else
-                    let
-                        newModel =
-                            { model | crate = Just model.crateText, version = Nothing }
-
-                        plotRequest =
-                            { crate = newModel.crate |> Maybe.withDefault ""
-                            , version = Nothing
-                            }
-                    in
-                    ( resetError newModel, fetch plotRequest )
-
-            else
-                ( resetError model, Cmd.none )
+        VersionSelected s ->
+            let
+                plotRequest =
+                    { crate = model.crateText
+                    , version = Just s
+                    }
+            in
+            ( model, fetchDownloads plotRequest )
 
 
 view : Model -> Html Msg
 view model =
     let
+        selectOptions : List (Html Msg)
+        selectOptions =
+            [ option [ value "all" ] [ text "all" ] ] ++ List.map versionOption model.versions
+
         header =
             div []
                 [ h1 [] [ text "Crate Stats" ]
                 , label [ for "crate-name-input" ] [ text "Crate name" ]
-                , input [ id "crate-name-input", type_ "text", onInput CrateNameUpdated, onKeyDown KeyDown ] []
-                , label [ for "crate-version-input" ] [ text "Crate version (optional)" ]
-                , input [ id "crate-version-input", type_ "text", onInput CrateVersionUpdated, onKeyDown KeyDown ] []
+                , input [ id "crate-name-input", type_ "text", onInput CrateNameUpdated ] []
+                , select [ onInput VersionSelected ] selectOptions
                 ]
-
-        onKeyDown msg =
-            on "keydown" (D.map msg keyCode)
     in
     case model.error of
         Nothing ->
@@ -217,6 +210,11 @@ view model =
                 [ header
                 , viewError e
                 ]
+
+
+versionOption : String -> Html msg
+versionOption v =
+    option [ value v ] [ text v ]
 
 
 viewError : CrateStatsError -> Html Msg
@@ -241,9 +239,6 @@ viewError error =
                 Http.NetworkError ->
                     div []
                         [ text "Network error" ]
-
-        SemverParseError ->
-            div [] [ text "Invalid semver" ]
 
 
 type XType
