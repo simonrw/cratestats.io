@@ -44,6 +44,51 @@ struct Download {
     downloads: i64,
 }
 
+#[derive(Serialize)]
+struct CrateVersions {
+    versions: Vec<String>,
+}
+
+async fn fetch_versions(crate_name: web::Path<String>, db: web::Data<r2d2::Pool<r2d2_postgres::PostgresConnectionManager>>) -> Result<web::Json<CrateVersions>, Error> {
+    log::info!("handling version query to crate {}", crate_name);
+    web::block(move || {
+        let conn = db.get().unwrap();
+        let crate_name = crate_name.into_inner();
+
+        let rows = conn.query(
+            "SELECT DISTINCT versions.num
+            FROM versions
+            JOIN crates ON crates.id = versions.crate_id
+            WHERE crates.name = $1
+            ", &[&crate_name]).unwrap();
+
+        let versions = rows.iter().map(|row| row.get(0)).collect::<Vec<_>>();
+
+        let res: Result<CrateVersions, failure::Error> = Ok(CrateVersions {
+            versions
+        });
+
+        res
+    })
+    .await
+    .map(|versions| web::Json(versions))
+    .map_err(|e| {
+        match e {
+            actix_threadpool::BlockingError::Error(e) => {
+                HttpResponse::InternalServerError().json(json!({
+                    "error": e.to_string(),
+                }))
+            }
+            actix_threadpool::BlockingError::Canceled => {
+                HttpResponse::InternalServerError().json(json!({
+                    "error": "threadpool task cancelled",
+                }))
+            }
+        }
+        .into()
+    })
+}
+
 async fn download_timeseries(
     item: web::Json<DownloadTimeseriesRequest>,
     db: web::Data<r2d2::Pool<r2d2_postgres::PostgresConnectionManager>>,
@@ -155,7 +200,8 @@ async fn main() -> io::Result<()> {
                     // Limit the size of incoming payload
                     .data(web::JsonConfig::default().limit(1024))
                     .data(pool.clone())
-                    .route("/downloads", web::post().to(download_timeseries)),
+                    .service(web::resource("/downloads").route(web::post().to(download_timeseries)))
+                    .service(web::resource("/versions/{crate_name}").route(web::get().to(fetch_versions))),
             )
             .service(fs::Files::new("/static", "static"))
             .service(web::scope("/").data(tera).route("", web::get().to(index)))
@@ -165,9 +211,12 @@ async fn main() -> io::Result<()> {
 
     // Let listenfd support live reloading
     server = if let Some(l) = listenfd.take_tcp_listener(0).unwrap() {
+        log::debug!("using listenfd to bind to local address");
         server.listen(l)?
     } else {
-        server.bind(format!("{host}:{port}", host = host, port = port))?
+        let bind_address = format!("{host}:{port}", host = host, port = port);
+        log::info!("binding to address {}", bind_address);
+        server.bind(bind_address)?
     };
 
     server.start().await
