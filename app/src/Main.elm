@@ -10,11 +10,19 @@ import Json.Encode as E
 import Semver
 
 
+type
+    CrateStatsError
+    -- = TextError String
+    = HttpError Http.Error
+    | SemverParseError
+
+
 type alias Model =
     { crateText : String
     , versionText : String
     , crate : Maybe String
     , version : Maybe Semver.Version
+    , error : Maybe CrateStatsError
     }
 
 
@@ -24,7 +32,13 @@ initModel =
     , versionText = ""
     , crate = Nothing
     , version = Nothing
+    , error = Nothing
     }
+
+
+resetError : Model -> Model
+resetError m =
+    { m | error = Nothing }
 
 
 type alias PlotRequest =
@@ -131,10 +145,10 @@ update msg model =
                             , id = "plot-container"
                             }
                     in
-                    ( model, elmToJs <| encodePlotSpec plotSpec1 )
+                    ( resetError model, elmToJs <| encodePlotSpec plotSpec1 )
 
-                Err _ ->
-                    ( model, Cmd.none )
+                Err e ->
+                    ( { model | error = Just (HttpError e) }, Cmd.none )
 
         CrateNameUpdated s ->
             ( { model | crateText = s }, Cmd.none )
@@ -144,16 +158,34 @@ update msg model =
 
         KeyDown keyCode ->
             if keyCode == 13 then
-                let
-                    newModel =
-                        { model | crate = Just model.crateText, version = Semver.parse model.versionText }
+                if model.versionText /= "" then
+                    case Semver.parse model.versionText of
+                        Just validVersion ->
+                            let
+                                newModel =
+                                    { model | crate = Just model.crateText, version = Just validVersion }
 
-                    plotRequest =
-                        { crate = newModel.crate |> Maybe.withDefault ""
-                        , version = newModel.version |> Maybe.map Semver.print
-                        }
-                in
-                ( newModel, fetch plotRequest )
+                                plotRequest =
+                                    { crate = newModel.crate |> Maybe.withDefault ""
+                                    , version = newModel.version |> Maybe.map Semver.print
+                                    }
+                            in
+                            ( newModel, fetch plotRequest )
+
+                        Nothing ->
+                            ( { model | error = Just SemverParseError }, Cmd.none )
+
+                else
+                    let
+                        newModel =
+                            { model | crate = Just model.crateText, version = Nothing }
+
+                        plotRequest =
+                            { crate = newModel.crate |> Maybe.withDefault ""
+                            , version = Nothing
+                            }
+                    in
+                    ( newModel, fetch plotRequest )
 
             else
                 ( model, Cmd.none )
@@ -163,25 +195,60 @@ update msg model =
 
 
 view : Model -> Html Msg
-view _ =
+view model =
     let
         header =
             div []
                 [ h1 [] [ text "Crate Stats" ]
+                , label [ for "crate-name-input" ] [ text "Crate name" ]
+                , input [ id "crate-name-input", type_ "text", onInput CrateNameUpdated, onKeyDown KeyDown ] []
+                , label [ for "crate-version-input" ] [ text "Crate version (optional)" ]
+                , input [ id "crate-version-input", type_ "text", onInput CrateVersionUpdated, onKeyDown KeyDown ] []
+                , a [ onClick ResetApp ] [ text "Back" ]
                 ]
 
         onKeyDown msg =
             on "keydown" (D.map msg keyCode)
     in
-    div []
-        [ header
-        , label [ for "crate-name-input" ] [ text "Crate name" ]
-        , input [ id "crate-name-input", type_ "text", onInput CrateNameUpdated, onKeyDown KeyDown ] []
-        , label [ for "crate-version-input" ] [ text "Crate version (optional)" ]
-        , input [ id "crate-version-input", type_ "text", onInput CrateVersionUpdated, onKeyDown KeyDown ] []
-        , a [ onClick ResetApp ] [ text "Back" ]
-        , div [ id "plot-container" ] []
-        ]
+    case model.error of
+        Nothing ->
+            div []
+                [ header
+                , div [ id "plot-container" ] []
+                ]
+
+        Just e ->
+            div []
+                [ header
+                , viewError e
+                ]
+
+
+viewError : CrateStatsError -> Html Msg
+viewError error =
+    case error of
+        HttpError e ->
+            case e of
+                Http.BadUrl s ->
+                    div [] [ text <| "Bad url: " ++ s ]
+
+                Http.Timeout ->
+                    div [] [ text "Network request timed out" ]
+
+                Http.BadStatus code ->
+                    div []
+                        [ text <| "Bad status: " ++ String.fromInt code ]
+
+                Http.BadBody s ->
+                    div []
+                        [ text <| "Bad body: " ++ s ]
+
+                Http.NetworkError ->
+                    div []
+                        [ text "Network error" ]
+
+        SemverParseError ->
+            div [] [ text "Invalid semver" ]
 
 
 type XType
