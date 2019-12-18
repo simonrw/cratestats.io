@@ -10,9 +10,21 @@ import Json.Encode as E
 import Semver
 
 
-type Model
-    = Searching PlotRequest
-    | Found PlotRequest
+type alias Model =
+    { crateText : String
+    , versionText : String
+    , crate : Maybe String
+    , version : Maybe Semver.Version
+    }
+
+
+initModel : Model
+initModel =
+    { crateText = ""
+    , versionText = ""
+    , crate = Nothing
+    , version = Nothing
+    }
 
 
 type alias PlotRequest =
@@ -57,7 +69,7 @@ fetch plotRequest =
 
 init : () -> ( Model, Cmd Msg )
 init _ =
-    ( Searching { crate = "", version = Nothing }, Cmd.none )
+    ( initModel, Cmd.none )
 
 
 type alias Downloads =
@@ -125,50 +137,33 @@ update msg model =
                     ( model, Cmd.none )
 
         CrateNameUpdated s ->
-            case model of
-                Searching { crate, version } ->
-                    ( Searching { crate = s, version = version }, Cmd.none )
-
-                _ ->
-                    ( model, Cmd.none )
+            ( { model | crateText = s }, Cmd.none )
 
         CrateVersionUpdated s ->
-            case model of
-                Searching { crate, version } ->
-                    ( Searching { crate = crate, version = Just s }, Cmd.none )
-
-                _ ->
-                    ( model, Cmd.none )
+            ( { model | versionText = s }, Cmd.none )
 
         KeyDown keyCode ->
             if keyCode == 13 then
-                -- Send off the data for the crate
-                case model of
-                    Searching r ->
-                        case r.version of
-                            Just v ->
-                                case Semver.parse v of
-                                    Just _ ->
-                                        ( Found r, fetch r )
+                let
+                    newModel =
+                        { model | crate = Just model.crateText, version = Semver.parse model.versionText }
 
-                                    Nothing ->
-                                        ( Searching r, Cmd.none )
-
-                            Nothing ->
-                                ( Found r, fetch r )
-
-                    Found _ ->
-                        ( model, Cmd.none )
+                    plotRequest =
+                        { crate = newModel.crate |> Maybe.withDefault ""
+                        , version = newModel.version |> Maybe.map Semver.print
+                        }
+                in
+                ( newModel, fetch plotRequest )
 
             else
                 ( model, Cmd.none )
 
         ResetApp ->
-            ( Searching { crate = "", version = Nothing }, Cmd.none )
+            ( initModel, Cmd.none )
 
 
 view : Model -> Html Msg
-view model =
+view _ =
     let
         header =
             div []
@@ -178,22 +173,15 @@ view model =
         onKeyDown msg =
             on "keydown" (D.map msg keyCode)
     in
-    case model of
-        Searching _ ->
-            div []
-                [ header
-                , label [ for "crate-name-input" ] [ text "Crate name" ]
-                , input [ id "crate-name-input", type_ "text", onInput CrateNameUpdated, onKeyDown KeyDown ] []
-                , label [ for "crate-version-input" ] [ text "Crate version (optional)" ]
-                , input [ id "crate-version-input", type_ "text", onInput CrateVersionUpdated, onKeyDown KeyDown ] []
-                ]
-
-        Found _ ->
-            div []
-                [ header
-                , a [ onClick ResetApp ] [ text "Back" ]
-                , div [ id "plot-container" ] []
-                ]
+    div []
+        [ header
+        , label [ for "crate-name-input" ] [ text "Crate name" ]
+        , input [ id "crate-name-input", type_ "text", onInput CrateNameUpdated, onKeyDown KeyDown ] []
+        , label [ for "crate-version-input" ] [ text "Crate version (optional)" ]
+        , input [ id "crate-version-input", type_ "text", onInput CrateVersionUpdated, onKeyDown KeyDown ] []
+        , a [ onClick ResetApp ] [ text "Back" ]
+        , div [ id "plot-container" ] []
+        ]
 
 
 type XType
