@@ -1,9 +1,9 @@
 port module Main exposing (XType(..), main)
 
 import Browser
-import Html exposing (Html, a, div, h1, input, label, text)
+import Html exposing (Html, div, h1, input, label, text)
 import Html.Attributes exposing (for, id, type_)
-import Html.Events exposing (keyCode, on, onClick, onInput)
+import Html.Events exposing (keyCode, on, onInput)
 import Http
 import Json.Decode as D
 import Json.Encode as E
@@ -119,7 +119,6 @@ type Msg
     | CrateNameUpdated String
     | CrateVersionUpdated String
     | KeyDown Int
-    | ResetApp
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -170,7 +169,7 @@ update msg model =
                                     , version = newModel.version |> Maybe.map Semver.print
                                     }
                             in
-                            ( newModel, fetch plotRequest )
+                            ( resetError newModel, fetch plotRequest )
 
                         Nothing ->
                             ( { model | error = Just SemverParseError }, Cmd.none )
@@ -185,13 +184,10 @@ update msg model =
                             , version = Nothing
                             }
                     in
-                    ( newModel, fetch plotRequest )
+                    ( resetError newModel, fetch plotRequest )
 
             else
-                ( model, Cmd.none )
-
-        ResetApp ->
-            ( initModel, Cmd.none )
+                ( resetError model, Cmd.none )
 
 
 view : Model -> Html Msg
@@ -204,7 +200,6 @@ view model =
                 , input [ id "crate-name-input", type_ "text", onInput CrateNameUpdated, onKeyDown KeyDown ] []
                 , label [ for "crate-version-input" ] [ text "Crate version (optional)" ]
                 , input [ id "crate-version-input", type_ "text", onInput CrateVersionUpdated, onKeyDown KeyDown ] []
-                , a [ onClick ResetApp ] [ text "Back" ]
                 ]
 
         onKeyDown msg =
