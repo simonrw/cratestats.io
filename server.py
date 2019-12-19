@@ -17,7 +17,7 @@ DATABASE_URL = os.environ["DATABASE_URL"]
 database = databases.Database(DATABASE_URL)
 
 # App setup
-app = FastAPI()
+app = FastAPI(title="cratestats.io", version="v1", redoc_url=None)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
@@ -84,7 +84,8 @@ async def download_timeseries(req: DownloadTimeseriesRequest):
     rows = await database.fetch_all(query=query, values=values)
     downloads = [Download(date=row["date"], downloads=row["downloads"]) for row in rows]
 
-    return {"name": req.name, "downloads": downloads, "version": req.version}
+    response = Downloads(name=req.name, downloads=downloads, version=req.version)
+    return response
 
 
 @app.get("/api/v1/versions/{crate_name}")
