@@ -3,6 +3,7 @@ from starlette.staticfiles import StaticFiles
 from starlette.templating import Jinja2Templates
 import datetime
 from starlette.requests import Request
+from starlette_prometheus import metrics, PrometheusMiddleware
 from pydantic import BaseModel
 from typing import List, Optional
 import databases
@@ -19,6 +20,10 @@ database = databases.Database(DATABASE_URL)
 # App setup
 app = FastAPI(title="cratestats.io", version="v1", redoc_url=None)
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# Middleware
+app.add_middleware(PrometheusMiddleware)
+app.add_route("/metrics", metrics)
 
 
 @app.on_event("startup")

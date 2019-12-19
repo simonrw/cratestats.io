@@ -310,6 +310,17 @@ dev = ["pre-commit", "tox"]
 
 [[package]]
 category = "main"
+description = "Python client for the Prometheus monitoring system."
+name = "prometheus-client"
+optional = false
+python-versions = "*"
+version = "0.7.1"
+
+[package.extras]
+twisted = ["twisted"]
+
+[[package]]
+category = "main"
 description = "psycopg2 - Python-PostgreSQL Database Adapter"
 name = "psycopg2-binary"
 optional = false
@@ -459,6 +470,18 @@ version = "0.12.9"
 full = ["aiofiles", "graphene", "itsdangerous", "jinja2", "python-multipart", "pyyaml", "requests", "ujson"]
 
 [[package]]
+category = "main"
+description = "Prometheus integration for Starlette"
+name = "starlette-prometheus"
+optional = false
+python-versions = ">=3.6,<4.0"
+version = "0.5.0"
+
+[package.dependencies]
+prometheus_client = ">=0.7,<0.8"
+starlette = ">=0.12.2"
+
+[[package]]
 category = "dev"
 description = "Python Library for Tom's Obvious, Minimal Language"
 name = "toml"
@@ -543,7 +566,7 @@ docs = ["sphinx", "jaraco.packaging (>=3.2)", "rst.linker (>=1.9)"]
 testing = ["pathlib2", "contextlib2", "unittest2"]
 
 [metadata]
-content-hash = "5cd49313fc38462b516f77792541653455cc98ddd5e2c3da5e28c0befbd16a50"
+content-hash = "66c3ba7bc31ccc9565a495a2e9a9633b4625102a264bbb7ff8b1052c7ee550e0"
 python-versions = "^3.6"
 
 [metadata.files]
@@ -710,6 +733,9 @@ pluggy = [
     {file = "pluggy-0.13.1-py2.py3-none-any.whl", hash = "sha256:966c145cd83c96502c3c3868f50408687b38434af77734af1e9ca461a4081d2d"},
     {file = "pluggy-0.13.1.tar.gz", hash = "sha256:15b2acde666561e1298d71b523007ed7364de07029219b604cf808bfa1c765b0"},
 ]
+prometheus-client = [
+    {file = "prometheus_client-0.7.1.tar.gz", hash = "sha256:71cd24a2b3eb335cb800c7159f423df1bd4dcd5171b234be15e3f31ec9f622da"},
+]
 psycopg2-binary = [
     {file = "psycopg2-binary-2.8.4.tar.gz", hash = "sha256:3a2522b1d9178575acee4adf8fd9f979f9c0449b00b4164bb63c3475ea6528ed"},
     {file = "psycopg2_binary-2.8.4-cp27-cp27m-macosx_10_6_intel.macosx_10_9_intel.macosx_10_9_x86_64.macosx_10_10_intel.macosx_10_10_x86_64.whl", hash = "sha256:890167d5091279a27e2505ff0e1fb273f8c48c41d35c5b92adbf4af80e6b2ed6"},
@@ -816,6 +842,10 @@ sqlalchemy = [
 ]
 starlette = [
     {file = "starlette-0.12.9.tar.gz", hash = "sha256:c2ac9a42e0e0328ad20fe444115ac5e3760c1ee2ac1ff8cdb5ec915c4a453411"},
+]
+starlette-prometheus = [
+    {file = "starlette-prometheus-0.5.0.tar.gz", hash = "sha256:45159fcea625a251780ffc80d959bf227d11789130e23344d173ed48e46d3e32"},
+    {file = "starlette_prometheus-0.5.0-py3-none-any.whl", hash = "sha256:121a8a6ba6e8d8287b278173a308e9f86a41e90433aaf3b81105987726960eb2"},
 ]
 toml = [
     {file = "toml-0.10.0-py2.7.egg", hash = "sha256:f1db651f9657708513243e61e6cc67d101a39bad662eaa9b5546f789338e07a3"},

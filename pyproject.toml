@@ -17,6 +17,7 @@ psycopg2-binary = "^2.8.4"
 python-dotenv = "^0.10.3"
 databases = "^0.2.6"
 asyncpg = "^0.20.0"
+starlette-prometheus = "^0.5.0"
 
 [tool.poetry.dev-dependencies]
 black = "^19.10b0"
