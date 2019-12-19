@@ -64,11 +64,10 @@ async def download_timeseries(req: DownloadTimeseriesRequest):
         JOIN versions ON crates.id = versions.crate_id
         JOIN version_downloads ON versions.id = version_downloads.version_id
         WHERE crates.name = :name
-        AND versions.num = :version
         GROUP BY version_downloads.date
         ORDER BY version_downloads.date ASC
         """
-        values = {"name": req.name, "version": req.version}
+        values = {"name": req.name}
     else:
         query = """
         SELECT version_downloads.date AS date, sum(version_downloads.downloads) as downloads
@@ -76,13 +75,29 @@ async def download_timeseries(req: DownloadTimeseriesRequest):
         JOIN versions ON crates.id = versions.crate_id
         JOIN version_downloads ON versions.id = version_downloads.version_id
         WHERE crates.name = :name
+        AND versions.num = :version
         GROUP BY version_downloads.date
         ORDER BY version_downloads.date ASC
         """
-        values = {"name": req.name}
+        values = {"name": req.name, "version": req.version}
 
     rows = await database.fetch_all(query=query, values=values)
     downloads = [Download(date=row["date"], downloads=row["downloads"]) for row in rows]
 
-    response = Downloads(name="test", downloads=downloads, version=req.version)
-    return response
+    return {"name": req.name, "downloads": downloads, "version": req.version}
+
+
+@app.get("/api/v1/versions/{crate_name}")
+async def fetch_versions(crate_name: str):
+    query = """SELECT DISTINCT versions.num as version
+    FROM versions
+    JOIN crates ON crates.id = versions.crate_id
+    WHERE crates.name = :name
+    """
+
+    values = {"name": crate_name}
+
+    rows = await database.fetch_all(query=query, values=values)
+    versions = [row["version"] for row in rows]
+
+    return {"versions": versions}
