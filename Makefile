@@ -5,11 +5,11 @@ help:
 
 .PHONY: run
 run:
-	cargo run
+	uvicorn server:app
 
 .PHONY: devrun
 devrun:
-	systemfd --no-pid -s http::8080 -- cargo watch -x run
+	uvicorn server:app --reload
 
 .PHONY: test
 test:
