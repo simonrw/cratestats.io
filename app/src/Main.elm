@@ -1,9 +1,9 @@
 port module Main exposing (XType(..), main)
 
 import Browser
-import Html exposing (Html, div, h1, input, label, option, select, text)
+import Html exposing (Html, button, div, h1, input, label, option, select, span, text)
 import Html.Attributes exposing (for, id, type_, value)
-import Html.Events exposing (on, onInput)
+import Html.Events exposing (on, onClick, onInput)
 import Http
 import Json.Decode as D
 import Json.Encode as E
@@ -18,7 +18,7 @@ type
 type alias Model =
     { crateText : String
     , error : Maybe CrateStatsError
-    , versions : List String
+    , versions : Maybe (List String)
     }
 
 
@@ -26,7 +26,7 @@ initModel : Model
 initModel =
     { crateText = ""
     , error = Nothing
-    , versions = []
+    , versions = Nothing
     }
 
 
@@ -132,6 +132,7 @@ type Msg
     | GotVersions (Result Http.Error Versions)
     | CrateNameUpdated String
     | VersionSelected String
+    | SearchForCrate
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -165,13 +166,13 @@ update msg model =
         GotVersions res ->
             case res of
                 Ok v ->
-                    ( { model | versions = v.versions }, Cmd.none )
+                    ( { model | versions = Just v.versions }, Cmd.none )
 
                 Err e ->
                     ( { model | error = Just (HttpError e) }, Cmd.none )
 
         CrateNameUpdated s ->
-            ( { model | crateText = s }, fetchVersions s )
+            ( { model | crateText = s }, Cmd.none )
 
         VersionSelected s ->
             let
@@ -182,20 +183,36 @@ update msg model =
             in
             ( model, fetchDownloads plotRequest )
 
+        SearchForCrate ->
+            let
+                crateName =
+                    model.crateText
+            in
+            ( model, fetchVersions crateName )
+
 
 view : Model -> Html Msg
 view model =
     let
-        selectOptions : List (Html Msg)
-        selectOptions =
-            [ option [ value "all" ] [ text "all" ] ] ++ List.map versionOption model.versions
+        selectElem =
+            case model.versions of
+                Just versions ->
+                    select [ onInput VersionSelected ]
+                        (option [ value "" ] [ text "-" ]
+                            :: option [ value "all" ] [ text "all" ]
+                            :: List.map versionOption versions
+                        )
+
+                Nothing ->
+                    span [] []
 
         header =
             div []
                 [ h1 [] [ text "Crate Stats" ]
                 , label [ for "crate-name-input" ] [ text "Crate name" ]
                 , input [ id "crate-name-input", type_ "text", onInput CrateNameUpdated ] []
-                , select [ onInput VersionSelected ] selectOptions
+                , button [ onClick SearchForCrate ] [ text "Search for crate" ]
+                , selectElem
                 ]
     in
     case model.error of
