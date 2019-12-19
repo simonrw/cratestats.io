@@ -3,7 +3,7 @@ port module Main exposing (XType(..), main)
 import Browser
 import Html exposing (Html, button, div, h1, input, label, option, select, span, text)
 import Html.Attributes exposing (for, id, type_, value)
-import Html.Events exposing (on, onClick, onInput)
+import Html.Events exposing (onClick, onInput)
 import Http
 import Json.Decode as D
 import Json.Encode as E
@@ -96,8 +96,7 @@ type alias Downloads =
 
 
 type alias Versions =
-    { versions : List String
-    }
+    List String
 
 
 type alias Download =
@@ -123,8 +122,7 @@ decodeDownload =
 
 decodeVersions : D.Decoder Versions
 decodeVersions =
-    D.map Versions
-        (D.field "versions" (D.list D.string))
+    D.list D.string
 
 
 type Msg
@@ -166,7 +164,7 @@ update msg model =
         GotVersions res ->
             case res of
                 Ok v ->
-                    ( { model | versions = Just v.versions }, Cmd.none )
+                    ( { model | versions = Just v }, Cmd.none )
 
                 Err e ->
                     ( { model | error = Just (HttpError e) }, Cmd.none )
