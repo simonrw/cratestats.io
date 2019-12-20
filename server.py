@@ -9,6 +9,7 @@ from typing import List, Optional
 import databases
 import dotenv
 import os
+import recursivedeps as depget
 
 # Setup variables
 dotenv.load_dotenv()
@@ -107,3 +108,13 @@ async def fetch_versions(crate_name: str):
     versions = [row["version"] for row in rows]
 
     return {"versions": versions}
+
+
+@app.get("/api/v1/dependencies/{crate_name}")
+async def fetch_deps(crate_name: str):
+    graph = await depget.build_graph(database, crate_name)
+
+    nodes = [{"id": node} for node in graph.nodes()]
+    edges = [{"source": source, "target": target} for (source, target) in graph.edges()]
+
+    return {"nodes": nodes, "links": edges}
