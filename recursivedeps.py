@@ -18,7 +18,7 @@ class NoValidVersions(DepException):
         super().__init__("no versions found")
 
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.WARNING)
 logger = logging.getLogger()
 
 
@@ -129,12 +129,31 @@ def update_graph(graph, conn, node_store, crate_name, crate_version, depth):
         dep_node = node_store.add(graph, dep_crate_name)
 
         if graph.has_edge(node, dep_node):
-            logger.warning("seen edge %s-%s before", node, dep_node)
             continue
 
         graph.add_edge(node, dep_node)
 
         update_graph(graph, conn, node_store, dep_name, str(dep_version), depth + 1)
+
+
+def build_graph(conn: psycopg2.extensions.connection, crate_name: str) -> nx.DiGraph:
+    g = nx.DiGraph()
+    node_store = NodeStore()
+
+    version = fetch_latest_version(conn, args.crate)
+
+    logger.info("updating graph with top level crate %s:%s", args.crate, version)
+
+    update_graph(
+        graph=g,
+        conn=conn,
+        node_store=node_store,
+        crate_name=args.crate,
+        crate_version=version,
+        depth=0,
+    )
+
+    return g
 
 
 if __name__ == "__main__":
@@ -150,20 +169,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     with psycopg2.connect(os.environ["DATABASE_URL"]) as conn:
-        g = nx.DiGraph()
-        node_store = NodeStore()
-
-        version = fetch_latest_version(conn, args.crate)
-
-        logger.info("updating graph with top level crate %s:%s", args.crate, version)
-
-        update_graph(
-            graph=g,
-            conn=conn,
-            node_store=node_store,
-            crate_name=args.crate,
-            crate_version=version,
-            depth=0,
-        )
+        g = build_graph(conn, args.crate)
 
     write_dot(g, args.output)
