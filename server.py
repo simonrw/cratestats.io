@@ -114,7 +114,18 @@ async def fetch_versions(crate_name: str):
 async def fetch_deps(crate_name: str):
     graph = await depget.build_graph(database, crate_name)
 
-    nodes = [{"id": node} for node in graph.nodes()]
-    edges = [{"source": source, "target": target} for (source, target) in graph.edges()]
+    graph_nodes = list(graph.nodes)
+    nodes = [
+        {"name": node}
+        for node in graph.nodes()
+    ]
+    edges = [
+        {
+            "source": graph_nodes.index(source),
+            "target": graph_nodes.index(target),
+            "value": 1,
+        }
+        for (source, target) in graph.edges()
+    ]
 
     return {"nodes": nodes, "links": edges}

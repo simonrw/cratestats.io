@@ -55,7 +55,7 @@ def test_deps(client):
     # Test nodes
     nodes = json["nodes"]
     assert len(nodes) > 0
-    assert "id" in nodes[0]
+    assert "name" in nodes[0]
 
 
     # Test edges
@@ -63,3 +63,4 @@ def test_deps(client):
     assert len(edges) > 0
     assert "source" in edges[0]
     assert "target" in edges[0]
+    assert "value" in edges[0]

@@ -20,6 +20,7 @@ class NoValidVersions(DepException):
 
 logging.basicConfig(level=logging.WARNING)
 logger = logging.getLogger()
+logger.setLevel(logging.WARNING)
 
 
 class NodeStore(object):
@@ -113,7 +114,7 @@ async def update_graph(graph, database, node_store, crate_name, crate_version, d
                 database, dep_name, dep_requirement
             )
         except NoValidVersions:
-            logger.warning(
+            logger.info(
                 "cannot find any matching versions for %s constraint: %s",
                 dep_name,
                 dep_requirement,
@@ -149,3 +150,35 @@ async def build_graph(database, crate_name: str) -> nx.DiGraph:
     )
 
     return g
+
+
+async def main():
+    import databases
+    import dotenv
+    import argparse
+    from networkx.drawing.nx_pydot import write_dot
+    dotenv.load_dotenv()
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-c", "--crate", required=True)
+    parser.add_argument("-o", "--output", required=True)
+    args = parser.parse_args()
+
+    DATABASE_URL = os.environ["DATABASE_URL"]
+
+    database = databases.Database(DATABASE_URL)
+    await database.connect()
+
+    graph = await build_graph(database, args.crate)
+
+    await database.disconnect()
+
+    write_dot(graph, args.output)
+
+
+
+if __name__ == "__main__":
+    import asyncio
+
+
+    asyncio.run(main())
