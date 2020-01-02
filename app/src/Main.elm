@@ -2,6 +2,7 @@ port module Main exposing (XType(..), main)
 
 import Browser
 import Html exposing (Html, button, div, h1, input, label, option, select, span, text)
+import Dict exposing (Dict)
 import Html.Attributes exposing (for, id, type_, value)
 import Html.Events exposing (onClick, onInput)
 import Http
@@ -147,13 +148,22 @@ update msg model =
                                 }
                             ]
 
+                        graph =
+                          { nodes = []
+                          , edges = []
+                          }
+
                         layout =
                             {}
 
                         plotSpec1 =
                             { traces = traces
                             , layout = layout
-                            , id = "plot-container"
+                            , ids = Dict.fromList
+                              [ ("history", "plot-container")
+                              , ("graph", "dep-container")
+                              ]
+                            , graph = graph
                             }
                     in
                     ( resetError model, elmToJs <| encodePlotSpec plotSpec1 )
@@ -265,6 +275,12 @@ type
     Trace
     -- = Scatter { x : List XType, y : List Float }
     = Line { x : List XType, y : List Float }
+    
+
+type alias Graph =
+  { nodes : List String
+  , edges : List (String, String)
+  }
 
 
 type alias Layout =
@@ -274,14 +290,15 @@ type alias Layout =
 type alias PlotSpec =
     { traces : List Trace
     , layout : Layout
-    , id : String
+    , ids : Dict String String
+    , graph : Graph
     }
 
 
 encodePlotSpec : PlotSpec -> E.Value
 encodePlotSpec spec =
     E.object
-        [ ( "id", E.string spec.id )
+        [ ( "ids", E.dict identity E.string spec.ids )
         , ( "data", encodeTraces spec.traces )
         , ( "layout", E.null )
         ]
@@ -308,7 +325,6 @@ encodeTrace trace =
                 , ( "y", E.list E.float l.y )
                 , ( "type", E.string "scatter" )
                 ]
-
 
 encodeXType : XType -> E.Value
 encodeXType typ =

@@ -5,11 +5,11 @@ help:
 
 .PHONY: run
 run:
-	uvicorn server:app
+	poetry run uvicorn server:app
 
 .PHONY: devrun
 devrun:
-	uvicorn server:app --reload
+	poetry run uvicorn server:app --reload
 
 .PHONY: test
 test:

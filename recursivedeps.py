@@ -20,6 +20,7 @@ class NoValidVersions(DepException):
 
 logging.basicConfig(level=logging.WARNING)
 logger = logging.getLogger()
+logger.setLevel(logging.WARNING)
 
 
 class NodeStore(object):
@@ -36,17 +37,16 @@ class NodeStore(object):
         return name
 
 
-def fetch_latest_version(conn, crate_name):
-    with conn.cursor() as cursor:
-        cursor.execute(
-            """SELECT versions.num
+async def fetch_latest_version(database, crate_name):
+    rows = await database.fetch_all(
+        query="""SELECT versions.num as num
                 FROM crates
                 JOIN versions ON crates.id = versions.crate_id
-                WHERE crates.name = %s
+                WHERE crates.name = :crate_name
                 """,
-            (crate_name,),
-        )
-        versions = [row[0] for row in cursor]
+        values={"crate_name": crate_name},
+    )
+    versions = [row["num"] for row in rows]
 
     if not versions:
         raise ValueError(f"cannot find any versions for {crate_name}")
@@ -60,38 +60,31 @@ def node_name(crate_name, crate_version):
     return f"{crate_name} - {crate_version}"
 
 
-def fetch_compatible_version(conn, dep_name, dep_requirement):
+async def fetch_compatible_version(database, dep_name, dep_requirement):
     logger.debug("checking for versions of %s matching %s", dep_name, dep_requirement)
     req = SimpleSpec(dep_requirement.replace(" ", ""))
 
-    with conn.cursor() as cursor:
-        cursor.execute(
-            """SELECT versions.num
+    rows = await database.fetch_all(
+            query="""SELECT versions.num
                 FROM versions
                 JOIN crates ON crates.id = versions.crate_id
-                WHERE crates.name = %s
+                WHERE crates.name = :name
                 """,
-            (dep_name,),
+            values={"name": dep_name}
         )
 
-        version_strings = [row[0] for row in cursor]
-
-        versions = [Version(vs) for vs in version_strings]
-
+    version_strings = (row["num"] for row in rows)
+    versions = (Version(vs) for vs in version_strings)
     valid_versions = [v for v in versions if req.match(v)]
-
     valid_versions.sort()
+
     try:
         return valid_versions[-1]
     except IndexError:
         raise NoValidVersions()
 
 
-def graph_contains_edge(graph, n1, n2):
-    graph.has_edge(n1, n2)
-
-
-def update_graph(graph, conn, node_store, crate_name, crate_version, depth):
+async def update_graph(graph, database, node_store, crate_name, crate_version, depth):
     prefix = " " * depth
 
     this_crate_name = node_name(crate_name, crate_version)
@@ -99,26 +92,29 @@ def update_graph(graph, conn, node_store, crate_name, crate_version, depth):
     logger.info("%sseen %s", prefix, this_crate_name)
     node = node_store.add(graph, this_crate_name)
 
-    with conn.cursor() as cursor:
-        cursor.execute(
-            """SELECT b.name, deps.req
+    rows = await database.fetch_all(
+        """SELECT b.name, deps.req
                 FROM crates AS a
                 JOIN versions ON a.id = versions.crate_id
                 JOIN dependencies AS deps ON deps.version_id = versions.id
                 JOIN crates AS b ON deps.crate_id = b.id
-                WHERE a.name = %s
+                WHERE a.name = :name
                 AND (deps.kind = 0 OR deps.kind = 1)
-                AND versions.num = %s
+                AND versions.num = :version
                 """,
-            (crate_name, crate_version),
-        )
-        rows = cursor.fetchall()
+        values={"name": crate_name, "version": crate_version},
+    )
 
-    for dep_name, dep_requirement in rows:
+    for row in rows:
+        dep_name = row["name"]
+        dep_requirement = row["req"]
+
         try:
-            dep_version = fetch_compatible_version(conn, dep_name, dep_requirement)
+            dep_version = await fetch_compatible_version(
+                database, dep_name, dep_requirement
+            )
         except NoValidVersions:
-            logger.warning(
+            logger.info(
                 "cannot find any matching versions for %s constraint: %s",
                 dep_name,
                 dep_requirement,
@@ -133,22 +129,22 @@ def update_graph(graph, conn, node_store, crate_name, crate_version, depth):
 
         graph.add_edge(node, dep_node)
 
-        update_graph(graph, conn, node_store, dep_name, str(dep_version), depth + 1)
+        await update_graph(graph, database, node_store, dep_name, str(dep_version), depth + 1)
 
 
-def build_graph(conn: psycopg2.extensions.connection, crate_name: str) -> nx.DiGraph:
+async def build_graph(database, crate_name: str) -> nx.DiGraph:
     g = nx.DiGraph()
     node_store = NodeStore()
 
-    version = fetch_latest_version(conn, args.crate)
+    version = await fetch_latest_version(database, crate_name)
 
-    logger.info("updating graph with top level crate %s:%s", args.crate, version)
+    logger.info("updating graph with top level crate %s:%s", crate_name, version)
 
-    update_graph(
+    await update_graph(
         graph=g,
-        conn=conn,
+        database=database,
         node_store=node_store,
-        crate_name=args.crate,
+        crate_name=crate_name,
         crate_version=version,
         depth=0,
     )
@@ -156,11 +152,11 @@ def build_graph(conn: psycopg2.extensions.connection, crate_name: str) -> nx.DiG
     return g
 
 
-if __name__ == "__main__":
-    import argparse
+async def main():
+    import databases
     import dotenv
+    import argparse
     from networkx.drawing.nx_pydot import write_dot
-
     dotenv.load_dotenv()
 
     parser = argparse.ArgumentParser()
@@ -168,7 +164,21 @@ if __name__ == "__main__":
     parser.add_argument("-o", "--output", required=True)
     args = parser.parse_args()
 
-    with psycopg2.connect(os.environ["DATABASE_URL"]) as conn:
-        g = build_graph(conn, args.crate)
+    DATABASE_URL = os.environ["DATABASE_URL"]
 
-    write_dot(g, args.output)
+    database = databases.Database(DATABASE_URL)
+    await database.connect()
+
+    graph = await build_graph(database, args.crate)
+
+    await database.disconnect()
+
+    write_dot(graph, args.output)
+
+
+
+if __name__ == "__main__":
+    import asyncio
+
+
+    asyncio.run(main())
