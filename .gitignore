@@ -14,3 +14,4 @@ dbdumps
 
 /target
 **/*.rs.bk
+.direnv
