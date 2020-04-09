@@ -2,6 +2,7 @@ import os
 import dash
 import dotenv
 import pandas as pd
+import numpy as np
 import dash_core_components as dcc
 import dash_html_components as html
 import plotly.graph_objects as go
@@ -15,10 +16,36 @@ dotenv.load_dotenv()
 database_url = os.environ["CRATESTATS_DATABASE_URL"]
 
 # Data setup
-categories_df = pd.read_sql(queries.downloads_per_category(), database_url,)
+categories_df = queries.downloads_per_category(database_url)
+downloads_timeseries_df = queries.downloads_per_dow(database_url)
+
+# Helper functions
+def download_heatmap_plot():
+    first_week = downloads_timeseries_df["week"].min()
+    last_week = downloads_timeseries_df["week"].max()
+
+    out = []
+    weeks = list(range(int(first_week), int(last_week)))
+    for week in weeks:
+        row = []
+        for day in range(0, 7):
+            cell_idx = (downloads_timeseries_df["week"].astype(int) == week) & (
+                downloads_timeseries_df["dow"].astype(int) == day
+            )
+            row.append(downloads_timeseries_df[cell_idx]["total_downloads"].sum())
+        out.append(row)
+
+    arr = np.array(out).T
+
+    dow = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+    return go.Figure(
+        data=go.Heatmap(
+            z=arr, y=dow, x=weeks
+        )
+    )
+
 
 # App setup
-
 
 app = dash.Dash(__name__)
 
@@ -55,6 +82,9 @@ app.layout = html.Div(
                             values=categories_df["crate_count"],
                         )
                     ),
+                ),
+                dcc.Graph(
+                    id="downloads-per-dow-heatmap", figure=download_heatmap_plot(),
                 ),
             ]
         ),
