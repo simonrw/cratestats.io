@@ -15,3 +15,4 @@ dbdumps
 /target
 **/*.rs.bk
 .direnv
+*.egg-info
