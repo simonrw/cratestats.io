@@ -7,25 +7,15 @@ import dash_html_components as html
 import plotly.graph_objects as go
 from dash.dependencies import Input, Output
 
+from . import queries
+
 dotenv.load_dotenv()
 
 
 database_url = os.environ["CRATESTATS_DATABASE_URL"]
 
 # Data setup
-categories_df = pd.read_sql(
-    """
-        SELECT
-            categories.category,
-            count(crates.id) as crate_count
-        FROM crates
-        JOIN crates_categories ON crates.id = crates_categories.crate_id
-        JOIN categories ON crates_categories.category_id = categories.id
-        GROUP BY categories.category
-        ORDER BY crate_count DESC
-        """,
-    database_url,
-)
+categories_df = pd.read_sql(queries.downloads_per_category(), database_url,)
 
 # App setup
 
@@ -93,4 +83,3 @@ def update_num_categories(num_categories):
     )
 
     return bar_result, pie_result
-
