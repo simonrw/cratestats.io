@@ -83,6 +83,7 @@ app.layout = html.Div(
                         )
                     ),
                 ),
+                html.H2("Downloads per day of the week/week of the year"),
                 dcc.Graph(
                     id="downloads-per-dow-heatmap", figure=download_heatmap_plot(),
                 ),
