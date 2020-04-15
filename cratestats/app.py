@@ -38,16 +38,15 @@ def download_heatmap_plot():
     arr = np.array(out).T
 
     dow = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
-    return go.Figure(
-        data=go.Heatmap(
-            z=arr, y=dow, x=weeks
-        )
-    )
+    return go.Figure(data=go.Heatmap(z=arr, y=dow, x=weeks))
 
 
 # App setup
 
-app = dash.Dash(__name__)
+external_stylesheets = ["https://unpkg.com/tailwindcss@^1.0/dist/tailwind.min.css"]
+
+app = dash.Dash(__name__, external_stylesheets=external_stylesheets,)
+app.scripts.config.serve_locally = False
 
 app.layout = html.Div(
     [
